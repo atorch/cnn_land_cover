@@ -4,6 +4,9 @@ import os
 import yaml
 
 import fiona
+import keras
+from keras.models import Model
+from keras.layers import Conv2D, Dense, Flatten, Input, MaxPooling2D
 import numpy as np
 import pyproj
 import rasterio
@@ -155,23 +158,23 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
     return cdl_recoded
 
 def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
-    # Note: both values and image_shape are (band, y, x)
+    # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
+    x_start = np.random.choice(range(naip_values.shape[0] - image_shape[0]))
     y_start = np.random.choice(range(naip_values.shape[1] - image_shape[1]))
-    x_start = np.random.choice(range(naip_values.shape[2] - image_shape[2]))
 
+    x_end = x_start + image_shape[0]
     y_end = y_start + image_shape[1]
-    x_end = x_start + image_shape[2]
 
-    naip_crop = naip_values[0:image_shape[0], y_start:y_end, x_start:x_end]
+    naip_crop = naip_values[x_start:x_end, y_start:y_end, 0:image_shape[2]]
 
     # Note: target variable is indicator for whether NAIP scene is >50% forest
     forest_code = label_encoder.transform(['forest'])[0]
-    cdl_crop = int(np.mean(cdl_values[0, y_start:y_end, x_start:x_end] == forest_code) > 0.5)
+    cdl_crop = int(np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest_code) > 0.5)
 
     return naip_crop, cdl_crop
 
 
-def generator(annotated_scenes, label_encoder, batch_size=32, image_shape=(4, 128, 128)):
+def generator(annotated_scenes, label_encoder, image_shape, batch_size=32):
 
     while True:
 
@@ -190,9 +193,34 @@ def generator(annotated_scenes, label_encoder, batch_size=32, image_shape=(4, 12
                 label_encoder,
             )
 
+        # Note: generator returns tuples of (inputs, targets)
         yield(batch_X, batch_Y)
 
-def main():
+def get_keras_model(image_shape):
+    first = Input(shape=image_shape)
+
+    a = Conv2D(16, kernel_size=3, padding="same", activation="relu")(first)
+    b = MaxPooling2D()(a)
+    # TODO More layers, batch norm
+
+    flat = Flatten()(b)
+    last = Dense(1)(flat)
+
+    model = Model(inputs=first, outputs=last)
+
+    print(model.summary())
+
+    nadam = keras.optimizers.Nadam()
+
+    model.compile(
+        optimizer=nadam,
+        loss=keras.losses.binary_crossentropy,
+        metrics=['accuracy'],
+    )
+
+    return model
+
+def main(image_shape=(128, 128, 4)):
 
     naip_paths = glob.glob(os.path.join(NAIP_DIR, 'm_*tif'))
     print 'found ' + str(len(naip_paths)) + ' naip scenes'
@@ -227,11 +255,27 @@ def main():
 
         y_cdl_recoded = recode_cdl_values(y_cdl, cdl_mapping, cdl_label_encoder)
 
-        annotated_scenes.append((X, y_cdl_recoded))  # TODO X_mean, X_std
+        # Note: swap NAIP and CDL shape from (band, y, x) to (x, y, band)
+        annotated_scenes.append(
+            (np.swapaxes(X, 0, 2),
+             np.swapaxes(y_cdl_recoded, 0, 2)),
+        )  # TODO X_mean, X_std
 
-    my_generator = generator(annotated_scenes, cdl_label_encoder)
+    model = get_keras_model(image_shape)
+
+    my_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
     sample_batch = next(my_generator)
     print(Counter(sample_batch[1].flatten().tolist()))
+    print(sample_batch[0][0].shape)
+
+    model.fit_generator(
+        generator=my_generator,
+        steps_per_epoch=4,
+        epochs=4,
+        verbose=True,
+        callbacks=None,
+        validation_data=None,
+    )
 
 if __name__ == '__main__':
     main()
