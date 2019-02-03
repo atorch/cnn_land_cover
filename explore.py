@@ -1,3 +1,4 @@
+from collections import Counter
 import glob
 import os
 import yaml
@@ -153,18 +154,41 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
 
     return cdl_recoded
 
-def generator(annotated_scenes, batch_size=32, image_shape=(4, 128, 128)):
+def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
+    # Note: both values and image_shape are (band, y, x)
+    y_start = np.random.choice(range(naip_values.shape[1] - image_shape[1]))
+    x_start = np.random.choice(range(naip_values.shape[2] - image_shape[2]))
+
+    y_end = y_start + image_shape[1]
+    x_end = x_start + image_shape[2]
+
+    naip_crop = naip_values[0:image_shape[0], y_start:y_end, x_start:x_end]
+
+    # Note: target variable is indicator for whether NAIP scene is >50% forest
+    forest_code = label_encoder.transform(['forest'])[0]
+    cdl_crop = int(np.mean(cdl_values[0, y_start:y_end, x_start:x_end] == forest_code) > 0.5)
+
+    return naip_crop, cdl_crop
+
+
+def generator(annotated_scenes, label_encoder, batch_size=32, image_shape=(4, 128, 128)):
 
     while True:
 
         batch_X = np.empty((batch_size, ) + image_shape)
-        batch_Y = np.empty((batch_size, 1))  # TODO dtype, populate
+        batch_Y = np.empty((batch_size, 1), dtype=int)  # TODO dtype, populate
 
         scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
 
         for batch_index, scene_index in enumerate(scene_indices):
 
-            batch_X[batch_index] = annotated_scenes[scene_index][0][:, :128, :128]  # TODO
+            # Note: annotated scenes are tupled of (NAIP, CDL annotation)
+            batch_X[batch_index], batch_Y[batch_index] = get_random_crop(
+                annotated_scenes[scene_index][0],
+                annotated_scenes[scene_index][1],
+                image_shape,
+                label_encoder,
+            )
 
         yield(batch_X, batch_Y)
 
@@ -205,8 +229,9 @@ def main():
 
         annotated_scenes.append((X, y_cdl_recoded))  # TODO X_mean, X_std
 
-    my_generator = generator(annotated_scenes)
+    my_generator = generator(annotated_scenes, cdl_label_encoder)
     sample_batch = next(my_generator)
+    print(Counter(sample_batch[1].flatten().tolist()))
 
 if __name__ == '__main__':
     main()
