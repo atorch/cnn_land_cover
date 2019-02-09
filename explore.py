@@ -6,7 +6,7 @@ import yaml
 import fiona
 import keras
 from keras.models import Model
-from keras.layers import Conv2D, Dense, Flatten, Input, MaxPooling2D
+from keras.layers import BatchNormalization, Conv2D, Dense, Flatten, Input, MaxPooling2D
 import numpy as np
 import pyproj
 import rasterio
@@ -196,21 +196,26 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
         # Note: generator returns tuples of (inputs, targets)
         yield(batch_X, batch_Y)
 
+def add_keras_model_block(input_layer):
+
+    conv = Conv2D(32, kernel_size=3, padding="same", activation="relu")(input_layer)
+
+    maxpool = MaxPooling2D()(conv)
+
+    return BatchNormalization()(maxpool)
+
 def get_keras_model(image_shape):
-    first = Input(shape=image_shape)
+    input_layer = Input(shape=image_shape)
 
-    a = Conv2D(16, kernel_size=3, padding="same", activation="relu")(first)
-    b = MaxPooling2D()(a)
+    current_last_layer = input_layer
+    for _index in range(3):
 
-    # TODO More layers (n_layers arg), batch norm, dropout...
+        current_last_layer = add_keras_model_block(current_last_layer)
 
-    c = Conv2D(16, kernel_size=3, padding="same", activation="relu")(b)
-    d = MaxPooling2D()(c)
+    flat = Flatten()(current_last_layer)
+    final_layer = Dense(1, activation="sigmoid")(flat)
 
-    flat = Flatten()(d)
-    last = Dense(1)(flat)
-
-    model = Model(inputs=first, outputs=last)
+    model = Model(inputs=input_layer, outputs=final_layer)
 
     print(model.summary())
 
@@ -299,7 +304,7 @@ def main(image_shape=(128, 128, 4)):
     model.fit_generator(
         generator=my_generator,
         steps_per_epoch=16,
-        epochs=4,
+        epochs=20,
         verbose=True,
         callbacks=None,
         validation_data=None,
