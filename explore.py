@@ -174,7 +174,7 @@ def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
     return naip_crop, cdl_crop
 
 
-def generator(annotated_scenes, label_encoder, image_shape, batch_size=32):
+def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
 
     while True:
 
@@ -185,7 +185,7 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=32):
 
         for batch_index, scene_index in enumerate(scene_indices):
 
-            # Note: annotated scenes are tupled of (NAIP, CDL annotation)
+            # Note: annotated scenes are tuple of (NAIP, CDL annotation)
             batch_X[batch_index], batch_Y[batch_index] = get_random_crop(
                 annotated_scenes[scene_index][0],
                 annotated_scenes[scene_index][1],
@@ -201,9 +201,13 @@ def get_keras_model(image_shape):
 
     a = Conv2D(16, kernel_size=3, padding="same", activation="relu")(first)
     b = MaxPooling2D()(a)
-    # TODO More layers, batch norm
 
-    flat = Flatten()(b)
+    # TODO More layers (n_layers arg), batch norm, dropout...
+
+    c = Conv2D(16, kernel_size=3, padding="same", activation="relu")(b)
+    d = MaxPooling2D()(c)
+
+    flat = Flatten()(d)
     last = Dense(1)(flat)
 
     model = Model(inputs=first, outputs=last)
@@ -219,6 +223,27 @@ def get_keras_model(image_shape):
     )
 
     return model
+
+def normalize_scenes(annotated_scenes):
+
+    X_sizes = [X.size for X, y in annotated_scenes]
+    X_means = [X.mean() for X, y in annotated_scenes]
+    X_vars = [X.var() for X, y in annotated_scenes]
+
+    # Note: this produces the same result as
+    #  np.hstack((X.flatten() for X, Y in annotated_scenes)).mean()
+    # but uses less memory
+    X_mean = np.average(X_means, weights=X_sizes)
+    X_var = np.average(X_vars, weights=X_sizes)
+    X_std = np.sqrt(X_var)
+
+    for index, X_y in enumerate(annotated_scenes):
+
+        X, y = X_y
+        X_normalized = (X - X_mean) / X_std
+
+        # Note: this modifies annotated_scenes in place
+        annotated_scenes[index] = (X_normalized.astype(np.float32), y)
 
 def main(image_shape=(128, 128, 4)):
 
@@ -259,7 +284,9 @@ def main(image_shape=(128, 128, 4)):
         annotated_scenes.append(
             (np.swapaxes(X, 0, 2),
              np.swapaxes(y_cdl_recoded, 0, 2)),
-        )  # TODO X_mean, X_std
+        )
+
+    normalize_scenes(annotated_scenes)
 
     model = get_keras_model(image_shape)
 
@@ -268,9 +295,10 @@ def main(image_shape=(128, 128, 4)):
     print(Counter(sample_batch[1].flatten().tolist()))
     print(sample_batch[0][0].shape)
 
+    # TODO validation, test
     model.fit_generator(
         generator=my_generator,
-        steps_per_epoch=4,
+        steps_per_epoch=16,
         epochs=4,
         verbose=True,
         callbacks=None,
