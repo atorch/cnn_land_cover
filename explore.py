@@ -12,6 +12,7 @@ import pyproj
 import rasterio
 from rasterio.windows import Window
 from shapely.geometry import Polygon
+from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
 CDL_DIR = './cdl'
@@ -295,20 +296,28 @@ def main(image_shape=(128, 128, 4)):
 
     model = get_keras_model(image_shape)
 
-    my_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
-    sample_batch = next(my_generator)
+    training_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
+    sample_batch = next(training_generator)
     print(Counter(sample_batch[1].flatten().tolist()))
     print(sample_batch[0][0].shape)
 
-    # TODO validation, test
+    # TODO validation
     model.fit_generator(
-        generator=my_generator,
+        generator=training_generator,
         steps_per_epoch=16,
         epochs=20,
         verbose=True,
         callbacks=None,
         validation_data=None,
     )
+
+    # TODO Larger test set, new generator on unseen NAIP scenes
+    test_X, test_y = next(training_generator)
+
+    test_predictions = model.predict(test_X)
+    test_predictions = (test_predictions > 0.5).astype(test_y.dtype)
+
+    print(classification_report(test_predictions, test_y))
 
 if __name__ == '__main__':
     main()
