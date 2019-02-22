@@ -4,9 +4,6 @@ import os
 import yaml
 
 import fiona
-import keras
-from keras.models import Model
-from keras.layers import BatchNormalization, Conv2D, Dense, Flatten, Input, MaxPooling2D
 import numpy as np
 import pyproj
 import rasterio
@@ -14,6 +11,8 @@ from rasterio.windows import Window
 from shapely.geometry import Polygon
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
+
+from cnn import get_keras_model
 
 CDL_DIR = './cdl'
 COUNTY_DIR = './county'
@@ -197,39 +196,6 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
         # Note: generator returns tuples of (inputs, targets)
         yield(batch_X, batch_Y)
 
-def add_keras_model_block(input_layer):
-
-    conv = Conv2D(32, kernel_size=3, padding="same", activation="relu")(input_layer)
-
-    maxpool = MaxPooling2D()(conv)
-
-    return BatchNormalization()(maxpool)
-
-def get_keras_model(image_shape):
-    input_layer = Input(shape=image_shape)
-
-    current_last_layer = input_layer
-    for _index in range(3):
-
-        current_last_layer = add_keras_model_block(current_last_layer)
-
-    flat = Flatten()(current_last_layer)
-    final_layer = Dense(1, activation="sigmoid")(flat)
-
-    model = Model(inputs=input_layer, outputs=final_layer)
-
-    print(model.summary())
-
-    nadam = keras.optimizers.Nadam()
-
-    model.compile(
-        optimizer=nadam,
-        loss=keras.losses.binary_crossentropy,
-        metrics=['accuracy'],
-    )
-
-    return model
-
 def normalize_scenes(annotated_scenes):
 
     X_sizes = [X.size for X, y in annotated_scenes]
@@ -301,18 +267,21 @@ def main(image_shape=(128, 128, 4)):
     print(Counter(sample_batch[1].flatten().tolist()))
     print(sample_batch[0][0].shape)
 
-    # TODO validation
+    # TODO Validation generator should use different scenes from training generator
+    validation_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
+
     model.fit_generator(
         generator=training_generator,
         steps_per_epoch=16,
         epochs=20,
         verbose=True,
         callbacks=None,
-        validation_data=None,
+        validation_data=validation_generator,
+        validation_steps=4,
     )
 
     # TODO Larger test set, new generator on unseen NAIP scenes
-    test_X, test_y = next(training_generator)
+    test_X, test_y = next(validation_generator)
 
     test_predictions = model.predict(test_X)
     test_predictions = (test_predictions > 0.5).astype(test_y.dtype)
