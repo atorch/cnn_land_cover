@@ -280,8 +280,9 @@ def main(image_shape=(128, 128, 4)):
         validation_steps=4,
     )
 
-    # TODO Larger test set, new generator on unseen NAIP scenes
-    test_X, test_y = next(validation_generator)
+    # TODO Test generator should use different scenes from training & validation generators
+    test_generator = generator(annotated_scenes, cdl_label_encoder, image_shape, batch_size=128)
+    test_X, test_y = next(test_generator)
 
     test_predictions = model.predict(test_X)
     test_predictions = (test_predictions > 0.5).astype(test_y.dtype)
