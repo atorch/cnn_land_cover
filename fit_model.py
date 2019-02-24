@@ -14,19 +14,19 @@ from annotate_naip_scenes import get_cdl_annotation_path_from_naip_path
 from cnn import get_keras_model
 
 
-CDL_DIR = './cdl'
-COUNTY_DIR = './county'
-NAIP_DIR = './naip'
+CDL_DIR = "./cdl"
+COUNTY_DIR = "./county"
+NAIP_DIR = "./naip"
 
 # TODO Make sure CDL year matches NAIP year
-CDL_FILE = '2017_30m_cdls.img'
-COUNTY_FILE = 'tl_2018_us_county.shp'
+CDL_FILE = "2017_30m_cdls.img"
+COUNTY_FILE = "tl_2018_us_county.shp"
 
-CDL_ANNOTATION_PREFIX = 'cdl_for_'
+CDL_ANNOTATION_PREFIX = "cdl_for_"
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
-CDL_MAPPING_FILE = 'cdl_classes.yml'
-CDL_CLASS_OTHER = 'other'
+CDL_MAPPING_FILE = "cdl_classes.yml"
+CDL_CLASS_OTHER = "other"
 
 
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
@@ -41,6 +41,7 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
 
     return cdl_recoded
 
+
 def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
     # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
     x_start = np.random.choice(range(naip_values.shape[0] - image_shape[0]))
@@ -49,11 +50,13 @@ def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
     x_end = x_start + image_shape[0]
     y_end = y_start + image_shape[1]
 
-    naip_crop = naip_values[x_start:x_end, y_start:y_end, 0:image_shape[2]]
+    naip_crop = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
 
     # Note: target variable is indicator for whether NAIP scene is >50% forest
-    forest_code = label_encoder.transform(['forest'])[0]
-    cdl_crop = int(np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest_code) > 0.5)
+    forest_code = label_encoder.transform(["forest"])[0]
+    cdl_crop = int(
+        np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest_code) > 0.5
+    )
 
     return naip_crop, cdl_crop
 
@@ -62,7 +65,7 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
 
     while True:
 
-        batch_X = np.empty((batch_size, ) + image_shape)
+        batch_X = np.empty((batch_size,) + image_shape)
         batch_Y = np.empty((batch_size, 1), dtype=int)  # TODO dtype, populate
 
         scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
@@ -78,7 +81,8 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
             )
 
         # Note: generator returns tuples of (inputs, targets)
-        yield(batch_X, batch_Y)
+        yield (batch_X, batch_Y)
+
 
 def normalize_scenes(annotated_scenes):
 
@@ -101,14 +105,15 @@ def normalize_scenes(annotated_scenes):
         # Note: this modifies annotated_scenes in place
         annotated_scenes[index] = (X_normalized.astype(np.float32), y)
 
+
 def main(image_shape=(128, 128, 4)):
 
-    naip_paths = glob.glob(os.path.join(NAIP_DIR, 'm_*tif'))[:2]
-    print(f'found {len(naip_paths)} naip scenes')
+    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))[:2]
+    print(f"found {len(naip_paths)} naip scenes")
 
     annotated_scenes = []
 
-    with open(CDL_MAPPING_FILE, 'r') as infile:
+    with open(CDL_MAPPING_FILE, "r") as infile:
 
         cdl_mapping = yaml.load(infile)
 
@@ -136,8 +141,7 @@ def main(image_shape=(128, 128, 4)):
 
         # Note: swap NAIP and CDL shape from (band, y, x) to (x, y, band)
         annotated_scenes.append(
-            (np.swapaxes(X, 0, 2),
-             np.swapaxes(y_cdl_recoded, 0, 2)),
+            (np.swapaxes(X, 0, 2), np.swapaxes(y_cdl_recoded, 0, 2))
         )
 
     normalize_scenes(annotated_scenes)
@@ -163,7 +167,9 @@ def main(image_shape=(128, 128, 4)):
     )
 
     # TODO Test generator should use different scenes from training & validation generators
-    test_generator = generator(annotated_scenes, cdl_label_encoder, image_shape, batch_size=128)
+    test_generator = generator(
+        annotated_scenes, cdl_label_encoder, image_shape, batch_size=128
+    )
     test_X, test_y = next(test_generator)
 
     test_predictions = model.predict(test_X)
@@ -171,5 +177,6 @@ def main(image_shape=(128, 128, 4)):
 
     print(classification_report(test_predictions, test_y))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
