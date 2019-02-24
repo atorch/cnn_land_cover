@@ -2,8 +2,8 @@
 
 # TODO
 
-* [] Docker
-* [] Multi-objective model
+* [ ] Docker
+* [ ] Multi-objective model
 
 # Datasets
 
