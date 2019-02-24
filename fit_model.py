@@ -104,7 +104,7 @@ def normalize_scenes(annotated_scenes):
 def main(image_shape=(128, 128, 4)):
 
     naip_paths = glob.glob(os.path.join(NAIP_DIR, 'm_*tif'))[:2]
-    print('found ' + str(len(naip_paths)) + ' naip scenes')
+    print(f'found {len(naip_paths)} naip scenes')
 
     annotated_scenes = []
 

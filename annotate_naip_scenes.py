@@ -94,7 +94,7 @@ def save_cdl_values_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
 
     output_path = os.path.join(NAIP_DIR, output_file)
 
-    print('writing ' + output_file)
+    print(f'writing {output_file}')
 
     with rasterio.open(output_path, 'w', **profile) as output:
         output.write(cdl_values.astype(profile['dtype']), 1)
@@ -118,7 +118,7 @@ def save_naip_annotations(naip_paths):
 
     for naip_path in naip_paths:
 
-        print('processing ' + naip_path)
+        print(f'processing {naip_path}')
 
         naip = rasterio.open(naip_path)
         proj_naip = pyproj.Proj(naip.crs)
@@ -141,7 +141,7 @@ def get_cdl_annotation_path_from_naip_path(naip_path):
 def main():
 
     naip_paths = glob.glob(os.path.join(NAIP_DIR, 'm_*tif'))
-    print('found ' + str(len(naip_paths)) + ' naip scenes')
+    print(f'found {len(naip_paths)} naip scenes')
 
     save_naip_annotations(naip_paths)
 
