@@ -2,6 +2,7 @@ import keras
 from keras.models import Model
 from keras.layers import BatchNormalization, Conv2D, Dense, Flatten, Input, MaxPooling2D
 
+
 def add_keras_model_block(input_layer):
 
     conv = Conv2D(32, kernel_size=3, padding="same", activation="relu")(input_layer)
@@ -9,6 +10,7 @@ def add_keras_model_block(input_layer):
     maxpool = MaxPooling2D()(conv)
 
     return BatchNormalization()(maxpool)
+
 
 def get_keras_model(image_shape):
     input_layer = Input(shape=image_shape)
@@ -28,9 +30,7 @@ def get_keras_model(image_shape):
     nadam = keras.optimizers.Nadam()
 
     model.compile(
-        optimizer=nadam,
-        loss=keras.losses.binary_crossentropy,
-        metrics=['accuracy'],
+        optimizer=nadam, loss=keras.losses.binary_crossentropy, metrics=["accuracy"]
     )
 
     return model
