@@ -1,5 +1,10 @@
 # CNN for Land Cover
 
+```bash
+sudo docker build . --tag=mydocker
+sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover mydocker bash
+```
+
 # TODO
 
 * [ ] Docker
