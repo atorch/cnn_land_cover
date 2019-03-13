@@ -7,15 +7,15 @@ import rasterio
 from rasterio.windows import Window
 
 
-CDL_DIR = "./cdl"
-COUNTY_DIR = "./county"
 NAIP_DIR = "./naip"
 
+CDL_ANNOTATION_DIR = "./cdl_annotations"
 # TODO Make sure CDL year matches NAIP year
 CDL_FILE = "2017_30m_cdls.img"
-COUNTY_FILE = "tl_2018_us_county.shp"
+CDL_DIR = "./cdl"
 
-CDL_ANNOTATION_PREFIX = "cdl_for_"
+COUNTY_DIR = "./county"
+COUNTY_FILE = "tl_2018_us_county.shp"
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
 CDL_MAPPING_FILE = "cdl_classes.yml"
@@ -87,13 +87,11 @@ def get_raster_values(raster, x_raster_proj, y_raster_proj):
     return raster_window_values[0, y_window_index, x_window_index]
 
 
-def save_cdl_values_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
+def save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
 
     cdl_values = get_raster_values(cdl, x_cdl, y_cdl)
 
     cdl_values = cdl_values.reshape((naip.meta["height"], naip.meta["width"]))
-
-    output_file = CDL_ANNOTATION_PREFIX + naip_file
 
     profile = naip.profile.copy()
 
@@ -102,9 +100,14 @@ def save_cdl_values_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
     profile["dtype"] = cdl.profile["dtype"]
     profile["count"] = 1
 
-    output_path = os.path.join(NAIP_DIR, output_file)
+    # Note: the CDL annotation for a given naip_file has the same file name,
+    # but is saved to a different directory
+    output_path = os.path.join(CDL_ANNOTATION_DIR, naip_file)
 
-    print(f"writing {output_file}")
+    print(f"writing {output_path}")
+
+    if not os.path.exists(CDL_ANNOTATION_DIR):
+        os.makedirs(CDL_ANNOTATION_DIR)
 
     with rasterio.open(output_path, "w", **profile) as output:
         output.write(cdl_values.astype(profile["dtype"]), 1)
@@ -129,7 +132,7 @@ def save_naip_annotations(naip_paths):
 
     for naip_path in naip_paths:
 
-        print(f"processing {naip_path}")
+        print(f"annotating {naip_path}")
 
         naip = rasterio.open(naip_path)
         proj_naip = pyproj.Proj(naip.crs)
@@ -142,13 +145,13 @@ def save_naip_annotations(naip_paths):
 
         naip_file = os.path.split(naip_path)[-1]
 
-        save_cdl_values_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip)
+        save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip)
 
 
 def get_cdl_annotation_path_from_naip_path(naip_path):
     head, tail = os.path.split(naip_path)
 
-    return os.path.join(head, CDL_ANNOTATION_PREFIX + tail)
+    return os.path.join(CDL_ANNOTATION_DIR, tail)
 
 
 def main():
