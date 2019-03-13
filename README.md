@@ -3,7 +3,8 @@
 # TODO
 
 * [ ] Docker
-* [ ] Multi-objective model
+* [ ] Multi-objective model (roads, buildings, ...)
+* [ ] Download script for [naip_scenes.txt](naip_scenes.txt)
 
 # Datasets
 
