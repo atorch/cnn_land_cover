@@ -1,10 +1,14 @@
+from functools import partial
 import glob
 import os
 
+import fiona
 import numpy as np
 import pyproj
 import rasterio
 from rasterio.windows import Window
+from shapely.geometry import Polygon, shape
+from shapely.ops import transform
 
 
 NAIP_DIR = "./naip"
@@ -114,12 +118,41 @@ def save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
 
 
 def get_counties(raster):
-    # TODO Finish this function
+
+    # TODO Qix for county files
     county_shp = fiona.open(os.path.join(COUNTY_DIR, COUNTY_FILE))
 
-    raster_poly = Polygon()
+    width, height = (raster.meta["width"], raster.meta["height"])
+
+    # Note: this is the (x, y) at the top-left of the raster
+    x, y = (raster.transform.c, raster.transform.f)
+
+    resolution_x, resolution_y = (raster.transform.a, raster.transform.e)
+
+    raster_bbox = Polygon(
+        [
+            [x, y],
+            [x + resolution_x * width, y],
+            [x + resolution_x * width, y + resolution_y * height],
+            [x, y + resolution_y * height],
+        ]
+    )
+
+    project = partial(
+        pyproj.transform, pyproj.Proj(raster.crs), pyproj.Proj(county_shp.crs)
+    )
+
+    raster_bbox_reprojected = transform(project, raster_bbox)
+
+    candidate_counties = county_shp.items(bbox=raster_bbox_reprojected.bounds)
 
     counties = []
+
+    for _id, candidate_county in candidate_counties:
+
+        if shape(candidate_county["geometry"]).intersects(raster_bbox_reprojected):
+
+            counties.append(candidate_county["properties"]["GEOID"])
 
     return counties
 
@@ -137,7 +170,8 @@ def save_naip_annotations(naip_paths):
         naip = rasterio.open(naip_path)
         proj_naip = pyproj.Proj(naip.crs)
 
-        # counties = get_counties(naip)
+        counties = get_counties(naip)
+        # TODO Get roads for counties
 
         y_naip, x_naip = get_y_x_at_pixel_centers(naip)
 
