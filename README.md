@@ -19,6 +19,8 @@ python fit_model.py
 * [ ] Docker
 * [ ] Multi-objective model (roads, buildings, ...)
 * [ ] Download script for [naip_scenes.txt](naip_scenes.txt)
+* [ ] Env var for year, use it in all download scripts
+* [ ] Qix spatial index files for shapefiles
 
 # Datasets
 
