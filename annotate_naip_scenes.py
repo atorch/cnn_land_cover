@@ -6,6 +6,7 @@ import fiona
 import numpy as np
 import pyproj
 import rasterio
+from rasterio.features import rasterize
 from rasterio.windows import Window
 from shapely.geometry import Polygon, shape
 from shapely.ops import transform
@@ -20,6 +21,9 @@ CDL_DIR = "./cdl"
 
 COUNTY_DIR = "./county"
 COUNTY_FILE = "tl_2018_us_county.shp"
+
+ROAD_DIR = "./roads"
+ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
 CDL_MAPPING_FILE = "cdl_classes.yml"
@@ -117,6 +121,39 @@ def save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
         output.write(cdl_values.astype(profile["dtype"]), 1)
 
 
+def save_road_annotation_for_naip_raster(counties, naip_file, naip):
+
+    road_geometries = []
+
+    for county in counties:
+
+        road_shp = fiona.open(os.path.join(ROAD_DIR, ROAD_FORMAT.format(county=county)))
+
+        # Note: we project from the road shapefile's CRS to the NAIP raster's CRS
+        projection_fn = partial(
+            pyproj.transform, pyproj.Proj(road_shp.crs), pyproj.Proj(naip.crs)
+        )
+
+        for road in road_shp:
+
+            road_geometry = shape(road['geometry'])
+
+            # TODO Buffer roads (lines) before rasterizing?
+            road_geometry_transformed = transform(projection_fn, road_geometry)
+
+            road_geometries.append(road_geometry_transformed)
+
+    road_values = rasterize(
+        road_geometries,
+        out_shape=(naip.meta['height'], naip.meta['width']),
+        transform=naip.transform,
+        all_touched=True,
+        dtype='uint8',
+    )
+
+    # TODO Save road annotation raster, visualize, sanity check
+
+
 def get_counties(raster):
 
     # TODO Qix for county files
@@ -138,11 +175,12 @@ def get_counties(raster):
         ]
     )
 
-    project = partial(
+    # Note: we project from the raster's CRS to the county shapefile's CRS
+    projection_fn = partial(
         pyproj.transform, pyproj.Proj(raster.crs), pyproj.Proj(county_shp.crs)
     )
 
-    raster_bbox_reprojected = transform(project, raster_bbox)
+    raster_bbox_reprojected = transform(projection_fn, raster_bbox)
 
     candidate_counties = county_shp.items(bbox=raster_bbox_reprojected.bounds)
 
@@ -168,16 +206,17 @@ def save_naip_annotations(naip_paths):
         print(f"annotating {naip_path}")
 
         naip = rasterio.open(naip_path)
-        proj_naip = pyproj.Proj(naip.crs)
+
+        naip_file = os.path.split(naip_path)[-1]
 
         counties = get_counties(naip)
-        # TODO Get roads for counties
+
+        save_road_annotation_for_naip_raster(counties, naip_file, naip)
 
         y_naip, x_naip = get_y_x_at_pixel_centers(naip)
 
+        proj_naip = pyproj.Proj(naip.crs)
         x_cdl, y_cdl = pyproj.transform(proj_naip, proj_cdl, x_naip, y_naip)
-
-        naip_file = os.path.split(naip_path)[-1]
 
         save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip)
 
