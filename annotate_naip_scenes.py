@@ -22,6 +22,7 @@ CDL_DIR = "./cdl"
 COUNTY_DIR = "./county"
 COUNTY_FILE = "tl_2018_us_county.shp"
 
+ROAD_ANNOTATION_DIR = "./road_annotations"
 ROAD_DIR = "./roads"
 ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
@@ -151,7 +152,25 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
         dtype='uint8',
     )
 
-    # TODO Save road annotation raster, visualize, sanity check
+    # TODO Copied from CDL code, put in a function
+    profile = naip.profile.copy()
+
+    # Note: the output has the same width, height, and transform as the NAIP raster,
+    # but contains a single band of ROAD codes (whereas the NAIP raster contains 4 bands)
+    profile["dtype"] = 'uint8'
+    profile["count"] = 1
+
+    # Note: the road annotation for a given naip_file has the same file name,
+    # but is saved to a different directory
+    output_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
+
+    print(f"writing {output_path}")
+
+    if not os.path.exists(ROAD_ANNOTATION_DIR):
+        os.makedirs(ROAD_ANNOTATION_DIR)
+
+    with rasterio.open(output_path, "w", **profile) as output:
+        output.write(road_values.astype(profile["dtype"]), 1)
 
 
 def get_counties(raster):
@@ -210,6 +229,7 @@ def save_naip_annotations(naip_paths):
         naip_file = os.path.split(naip_path)[-1]
 
         counties = get_counties(naip)
+        print(f"counties: {', '.join(counties)}")
 
         save_road_annotation_for_naip_raster(counties, naip_file, naip)
 
