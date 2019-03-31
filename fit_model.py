@@ -10,7 +10,7 @@ from shapely.geometry import Polygon
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
-from annotate_naip_scenes import get_cdl_annotation_path_from_naip_path
+from annotate_naip_scenes import CDL_ANNOTATION_DIR, ROAD_ANNOTATION_DIR
 from cnn import get_keras_model
 
 
@@ -106,12 +106,7 @@ def normalize_scenes(annotated_scenes):
         annotated_scenes[index] = (X_normalized.astype(np.float32), y)
 
 
-def main(image_shape=(128, 128, 4)):
-
-    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))[:2]
-    print(f"found {len(naip_paths)} naip scenes")
-
-    annotated_scenes = []
+def get_cdl_label_encoder():
 
     with open(CDL_MAPPING_FILE, "r") as infile:
 
@@ -122,13 +117,26 @@ def main(image_shape=(128, 128, 4)):
     cdl_classes = list(cdl_mapping.keys()) + [CDL_CLASS_OTHER]
     cdl_label_encoder.fit(cdl_classes)
 
+    return cdl_label_encoder
+
+
+def main(image_shape=(128, 128, 4)):
+
+    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))[:2]
+    print(f"found {len(naip_paths)} naip scenes")
+
+    annotated_scenes = []
+
+    cdl_label_encoder = get_cdl_label_encoder()
+
     for naip_path in naip_paths:
 
         with rasterio.open(naip_path) as naip:
 
             X = naip.read()
 
-        cdl_annotation_path = get_cdl_annotation_path_from_naip_path(naip_path)
+        naip_file = os.path.split(naip_paths)[1]
+        cdl_annotation_path = os.path.join(CDL_ANNOTATION_DIR, naip_file)
 
         with rasterio.open(cdl_annotation_path) as naip_cdl:
 
@@ -139,9 +147,19 @@ def main(image_shape=(128, 128, 4)):
 
         y_cdl_recoded = recode_cdl_values(y_cdl, cdl_mapping, cdl_label_encoder)
 
+        road_annotation_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
+
+        with rasterio.open(road_annotation_path) as naip_road:
+
+            y_road = naip_road.read()
+
         # Note: swap NAIP and CDL shape from (band, y, x) to (x, y, band)
         annotated_scenes.append(
-            (np.swapaxes(X, 0, 2), np.swapaxes(y_cdl_recoded, 0, 2))
+            (
+                np.swapaxes(X, 0, 2),
+                np.swapaxes(y_cdl_recoded, 0, 2),
+                np.swapaxes(y_road, 0, 2),
+            )
         )
 
     normalize_scenes(annotated_scenes)

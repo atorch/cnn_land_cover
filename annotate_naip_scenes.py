@@ -137,7 +137,7 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
         for road in road_shp:
 
-            road_geometry = shape(road['geometry'])
+            road_geometry = shape(road["geometry"])
 
             # TODO Buffer roads (lines) before rasterizing?
             road_geometry_transformed = transform(projection_fn, road_geometry)
@@ -146,10 +146,10 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
     road_values = rasterize(
         road_geometries,
-        out_shape=(naip.meta['height'], naip.meta['width']),
+        out_shape=(naip.meta["height"], naip.meta["width"]),
         transform=naip.transform,
         all_touched=True,
-        dtype='uint8',
+        dtype="uint8",
     )
 
     # TODO Copied from CDL code, put in a function
@@ -157,7 +157,7 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
     # Note: the output has the same width, height, and transform as the NAIP raster,
     # but contains a single band of ROAD codes (whereas the NAIP raster contains 4 bands)
-    profile["dtype"] = 'uint8'
+    profile["dtype"] = "uint8"
     profile["count"] = 1
 
     # Note: the road annotation for a given naip_file has the same file name,
@@ -239,12 +239,6 @@ def save_naip_annotations(naip_paths):
         x_cdl, y_cdl = pyproj.transform(proj_naip, proj_cdl, x_naip, y_naip)
 
         save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip)
-
-
-def get_cdl_annotation_path_from_naip_path(naip_path):
-    head, tail = os.path.split(naip_path)
-
-    return os.path.join(CDL_ANNOTATION_DIR, tail)
 
 
 def main():
