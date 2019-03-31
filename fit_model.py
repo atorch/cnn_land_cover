@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
 from annotate_naip_scenes import CDL_ANNOTATION_DIR, ROAD_ANNOTATION_DIR
-from cnn import get_keras_model
+from cnn import get_keras_model, HAS_ROADS, IS_MAJORITY_FOREST
 
 
 CDL_DIR = "./cdl"
@@ -66,14 +66,15 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
     while True:
 
         batch_X = np.empty((batch_size,) + image_shape)
-        batch_Y = np.empty((batch_size, 1), dtype=int)  # TODO dtype, populate
+        batch_forest = np.empty((batch_size, 1), dtype=int)
+        batch_roads = np.empty((batch_size, 1), dtype=int)
 
         scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
 
         for batch_index, scene_index in enumerate(scene_indices):
 
-            # Note: annotated scenes are tuple of (NAIP, CDL annotation)
-            batch_X[batch_index], batch_Y[batch_index] = get_random_crop(
+            # Note: annotated scenes are tuple of (NAIP, CDL annotation, road annotation)
+            batch_X[batch_index], batch_forest[batch_index] = get_random_crop(
                 annotated_scenes[scene_index][0],
                 annotated_scenes[scene_index][1],
                 image_shape,
@@ -81,14 +82,16 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
             )
 
         # Note: generator returns tuples of (inputs, targets)
-        yield (batch_X, batch_Y)
+        yield (batch_X, {IS_MAJORITY_FOREST: batch_forest, HAS_ROADS: batch_roads})
 
 
 def normalize_scenes(annotated_scenes):
 
-    X_sizes = [X.size for X, y in annotated_scenes]
-    X_means = [X.mean() for X, y in annotated_scenes]
-    X_vars = [X.var() for X, y in annotated_scenes]
+    # TODO Use same mean and std when normalizing validation and test scenes (avoid leakage)!
+
+    X_sizes = [X.size for X, *y in annotated_scenes]
+    X_means = [X.mean() for X, *y in annotated_scenes]
+    X_vars = [X.var() for X, *y in annotated_scenes]
 
     # Note: this produces the same result as
     #  np.hstack((X.flatten() for X, Y in annotated_scenes)).mean()
@@ -97,16 +100,15 @@ def normalize_scenes(annotated_scenes):
     X_var = np.average(X_vars, weights=X_sizes)
     X_std = np.sqrt(X_var)
 
-    for index, X_y in enumerate(annotated_scenes):
+    for index, (X, *y) in enumerate(annotated_scenes):
 
-        X, y = X_y
         X_normalized = (X - X_mean) / X_std
 
         # Note: this modifies annotated_scenes in place
-        annotated_scenes[index] = (X_normalized.astype(np.float32), y)
+        annotated_scenes[index][0] = X_normalized.astype(np.float32)
 
 
-def get_cdl_label_encoder():
+def get_cdl_label_encoder_and_mapping():
 
     with open(CDL_MAPPING_FILE, "r") as infile:
 
@@ -117,7 +119,7 @@ def get_cdl_label_encoder():
     cdl_classes = list(cdl_mapping.keys()) + [CDL_CLASS_OTHER]
     cdl_label_encoder.fit(cdl_classes)
 
-    return cdl_label_encoder
+    return cdl_label_encoder, cdl_mapping
 
 
 def main(image_shape=(128, 128, 4)):
@@ -127,7 +129,7 @@ def main(image_shape=(128, 128, 4)):
 
     annotated_scenes = []
 
-    cdl_label_encoder = get_cdl_label_encoder()
+    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
 
     for naip_path in naip_paths:
 
@@ -135,7 +137,7 @@ def main(image_shape=(128, 128, 4)):
 
             X = naip.read()
 
-        naip_file = os.path.split(naip_paths)[1]
+        naip_file = os.path.split(naip_path)[1]
         cdl_annotation_path = os.path.join(CDL_ANNOTATION_DIR, naip_file)
 
         with rasterio.open(cdl_annotation_path) as naip_cdl:
@@ -155,11 +157,11 @@ def main(image_shape=(128, 128, 4)):
 
         # Note: swap NAIP and CDL shape from (band, y, x) to (x, y, band)
         annotated_scenes.append(
-            (
+            [
                 np.swapaxes(X, 0, 2),
                 np.swapaxes(y_cdl_recoded, 0, 2),
                 np.swapaxes(y_road, 0, 2),
-            )
+            ]
         )
 
     normalize_scenes(annotated_scenes)
