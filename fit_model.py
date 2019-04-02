@@ -42,7 +42,10 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
     return cdl_recoded
 
 
-def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
+def get_random_window(annotated_scene, image_shape, label_encoder):
+
+    naip_values, cdl_values, road_values = annotated_scene
+
     # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
     x_start = np.random.choice(range(naip_values.shape[0] - image_shape[0]))
     y_start = np.random.choice(range(naip_values.shape[1] - image_shape[1]))
@@ -50,39 +53,41 @@ def get_random_crop(naip_values, cdl_values, image_shape, label_encoder):
     x_end = x_start + image_shape[0]
     y_end = y_start + image_shape[1]
 
-    naip_crop = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
+    naip_window = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
 
-    # Note: target variable is indicator for whether NAIP scene is >50% forest
+    # Note: this target variable is an indicator for whether the window is >50% forest
     forest_code = label_encoder.transform(["forest"])[0]
-    cdl_crop = int(
+    cdl_window = int(
         np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest_code) > 0.5
     )
 
-    return naip_crop, cdl_crop
+    # Note: this target variable is an indivator for whether the window is >(1/1000) roads
+    road_window = int(np.mean(road_values[x_start:x_end, y_start:y_end]) > 0.001)
+
+    return naip_window, cdl_window, road_window
 
 
 def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
 
     while True:
 
-        batch_X = np.empty((batch_size,) + image_shape)
-        batch_forest = np.empty((batch_size, 1), dtype=int)
-        batch_roads = np.empty((batch_size, 1), dtype=int)
+        X = np.empty((batch_size,) + image_shape)
+        forest = np.empty((batch_size, 1), dtype=int)
+        roads = np.empty((batch_size, 1), dtype=int)
 
         scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
 
         for batch_index, scene_index in enumerate(scene_indices):
 
             # Note: annotated scenes are tuple of (NAIP, CDL annotation, road annotation)
-            batch_X[batch_index], batch_forest[batch_index] = get_random_crop(
-                annotated_scenes[scene_index][0],
-                annotated_scenes[scene_index][1],
-                image_shape,
-                label_encoder,
+            window = get_random_window(
+                annotated_scenes[scene_index], image_shape, label_encoder
             )
 
+            X[batch_index], forest[batch_index], roads[batch_index] = window
+
         # Note: generator returns tuples of (inputs, targets)
-        yield (batch_X, {IS_MAJORITY_FOREST: batch_forest, HAS_ROADS: batch_roads})
+        yield (X, {IS_MAJORITY_FOREST: forest, HAS_ROADS: roads})
 
 
 def normalize_scenes(annotated_scenes):
@@ -112,7 +117,7 @@ def get_cdl_label_encoder_and_mapping():
 
     with open(CDL_MAPPING_FILE, "r") as infile:
 
-        cdl_mapping = yaml.load(infile)
+        cdl_mapping = yaml.safe_load(infile)
 
     cdl_label_encoder = LabelEncoder()
 
@@ -170,7 +175,10 @@ def main(image_shape=(128, 128, 4)):
 
     training_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
     sample_batch = next(training_generator)
-    print(Counter(sample_batch[1].flatten().tolist()))
+
+    for name, values in sample_batch[1].items():
+        print(f"Sample batch of {name}: {Counter(values.flatten().tolist())}")
+
     print(sample_batch[0][0].shape)
 
     # TODO Validation generator should use different scenes from training generator
@@ -193,9 +201,18 @@ def main(image_shape=(128, 128, 4)):
     test_X, test_y = next(test_generator)
 
     test_predictions = model.predict(test_X)
-    test_predictions = (test_predictions > 0.5).astype(test_y.dtype)
 
-    print(classification_report(test_predictions, test_y))
+    # Note: example name is "is_majority_forest/Sigmoid", need the part before the /
+    output_names = [x.op.name.split("/")[0] for x in model.outputs]
+
+    for index, name in enumerate(output_names):
+
+        test_predictions[index] = (test_predictions[index] > 0.5).astype(
+            test_y[name].dtype
+        )
+
+        print(f"Classification report for {name}:")
+        print(classification_report(test_predictions[index], test_y[name]))
 
 
 if __name__ == "__main__":

@@ -16,11 +16,10 @@ python fit_model.py
 
 # TODO
 
-* [ ] Docker
-* [ ] Multi-objective model (roads, buildings, ...)
 * [ ] Download script for [naip_scenes.txt](naip_scenes.txt)
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
+* [ ] More objectives: buildings, semantic segmentation...
 
 # Datasets
 
