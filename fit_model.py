@@ -10,22 +10,12 @@ from shapely.geometry import Polygon
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
-from annotate_naip_scenes import CDL_ANNOTATION_DIR, ROAD_ANNOTATION_DIR
+from annotate_naip_scenes import CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
 from cnn import get_keras_model, HAS_ROADS, IS_MAJORITY_FOREST
 
 
-CDL_DIR = "./cdl"
-COUNTY_DIR = "./county"
-NAIP_DIR = "./naip"
-
-# TODO Make sure CDL year matches NAIP year
-CDL_FILE = "2017_30m_cdls.img"
-COUNTY_FILE = "tl_2018_us_county.shp"
-
-CDL_ANNOTATION_PREFIX = "cdl_for_"
-
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
-CDL_MAPPING_FILE = "cdl_classes.yml"
+CDL_MAPPING_FILE = "./cdl/cdl_classes.yml"
 CDL_CLASS_OTHER = "other"
 
 

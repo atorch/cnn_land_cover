@@ -26,10 +26,6 @@ ROAD_ANNOTATION_DIR = "./road_annotations"
 ROAD_DIR = "./roads"
 ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
-# Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
-CDL_MAPPING_FILE = "cdl_classes.yml"
-CDL_CLASS_OTHER = "other"
-
 
 def get_y_x_at_pixel_centers(raster):
     yx_mesh = np.meshgrid(
