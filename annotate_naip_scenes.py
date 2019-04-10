@@ -92,7 +92,22 @@ def get_raster_values(raster, x_raster_proj, y_raster_proj):
     return raster_window_values[0, y_window_index, x_window_index]
 
 
-def save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
+def save_cdl_annotation_for_naip_raster(cdl, naip_file, naip):
+
+    # Note: the CDL annotation for a given naip_file has the same file name,
+    # but is saved to a different directory
+    output_path = os.path.join(CDL_ANNOTATION_DIR, naip_file)
+
+    if os.path.exists(output_path):
+        print(f"{output_path} already exists, skipping")
+        return
+
+    y_naip, x_naip = get_y_x_at_pixel_centers(naip)
+
+    proj_naip = pyproj.Proj(naip.crs)
+    proj_cdl = pyproj.Proj(cdl.crs)
+
+    x_cdl, y_cdl = pyproj.transform(proj_naip, proj_cdl, x_naip, y_naip)
 
     cdl_values = get_raster_values(cdl, x_cdl, y_cdl)
 
@@ -105,10 +120,6 @@ def save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
     profile["dtype"] = cdl.profile["dtype"]
     profile["count"] = 1
 
-    # Note: the CDL annotation for a given naip_file has the same file name,
-    # but is saved to a different directory
-    output_path = os.path.join(CDL_ANNOTATION_DIR, naip_file)
-
     print(f"writing {output_path}")
 
     if not os.path.exists(CDL_ANNOTATION_DIR):
@@ -119,6 +130,14 @@ def save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip):
 
 
 def save_road_annotation_for_naip_raster(counties, naip_file, naip):
+
+    # Note: the road annotation for a given naip_file has the same file name,
+    # but is saved to a different directory
+    output_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
+
+    if os.path.exists(output_path):
+        print(f"{output_path} already exists, skipping")
+        return
 
     road_geometries = []
 
@@ -155,10 +174,6 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
     # but contains a single band of ROAD codes (whereas the NAIP raster contains 4 bands)
     profile["dtype"] = "uint8"
     profile["count"] = 1
-
-    # Note: the road annotation for a given naip_file has the same file name,
-    # but is saved to a different directory
-    output_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
 
     print(f"writing {output_path}")
 
@@ -214,7 +229,6 @@ def save_naip_annotations(naip_paths):
 
     cdl_path = os.path.join(CDL_DIR, CDL_FILE)
     cdl = rasterio.open(cdl_path)
-    proj_cdl = pyproj.Proj(cdl.crs)
 
     for naip_path in naip_paths:
 
@@ -229,12 +243,7 @@ def save_naip_annotations(naip_paths):
 
         save_road_annotation_for_naip_raster(counties, naip_file, naip)
 
-        y_naip, x_naip = get_y_x_at_pixel_centers(naip)
-
-        proj_naip = pyproj.Proj(naip.crs)
-        x_cdl, y_cdl = pyproj.transform(proj_naip, proj_cdl, x_naip, y_naip)
-
-        save_cdl_annotation_for_naip_raster(x_cdl, y_cdl, cdl, naip_file, naip)
+        save_cdl_annotation_for_naip_raster(cdl, naip_file, naip)
 
 
 def main():
