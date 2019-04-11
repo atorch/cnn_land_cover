@@ -82,18 +82,21 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
 
 def get_X_mean_and_std(annotated_scenes):
 
-    # TODO Normalized by band?
+    # Note: annotated scene shapres are (x, y, band)
 
     X_sizes = [X.size for X, *y in annotated_scenes]
-    X_means = [X.mean() for X, *y in annotated_scenes]
-    X_vars = [X.var() for X, *y in annotated_scenes]
+    X_means = [X.mean(axis=(0, 1)) for X, *y in annotated_scenes]
+    X_vars = [X.var(axis=(0, 1)) for X, *y in annotated_scenes]
 
     # Note: this produces the same result as
     #  np.hstack((X.flatten() for X, Y in annotated_scenes)).mean()
     # but uses less memory
-    X_mean = np.average(X_means, weights=X_sizes)
-    X_var = np.average(X_vars, weights=X_sizes)
+    X_mean = np.average(X_means, weights=X_sizes, axis=0)
+    X_var = np.average(X_vars, weights=X_sizes, axis=0)
     X_std = np.sqrt(X_var)
+
+    X_mean = X_mean.reshape((1, 1, X_mean.size))
+    X_std = X_std.reshape((1, 1, X_std.size))
 
     return X_mean, X_std
 
@@ -181,6 +184,9 @@ def main(image_shape=(128, 128, 4)):
     )
 
     X_mean_train, X_std_train = get_X_mean_and_std(training_scenes)
+
+    print(f"X_mean_train = {X_mean_train}")
+    print(f"X_std_train = {X_std_train}")
 
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
