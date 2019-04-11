@@ -80,9 +80,9 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=16):
         yield (X, {IS_MAJORITY_FOREST: forest, HAS_ROADS: roads})
 
 
-def normalize_scenes(annotated_scenes):
+def get_X_mean_and_std(annotated_scenes):
 
-    # TODO Use same mean and std when normalizing validation and test scenes (avoid leakage)!
+    # TODO Normalized by band?
 
     X_sizes = [X.size for X, *y in annotated_scenes]
     X_means = [X.mean() for X, *y in annotated_scenes]
@@ -94,6 +94,13 @@ def normalize_scenes(annotated_scenes):
     X_mean = np.average(X_means, weights=X_sizes)
     X_var = np.average(X_vars, weights=X_sizes)
     X_std = np.sqrt(X_var)
+
+    return X_mean, X_std
+
+
+def normalize_scenes(annotated_scenes, X_mean, X_std):
+
+    # Note: use training mean and std when normalizing validation and test scenes (avoid leakage)!
 
     for index, (X, *y) in enumerate(annotated_scenes):
 
@@ -117,17 +124,13 @@ def get_cdl_label_encoder_and_mapping():
     return cdl_label_encoder, cdl_mapping
 
 
-def main(image_shape=(128, 128, 4)):
-
-    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))[:2]
-    print(f"found {len(naip_paths)} naip scenes")
+def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
 
     annotated_scenes = []
 
-    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
-
     for naip_path in naip_paths:
 
+        print(f"reading {naip_path}")
         with rasterio.open(naip_path) as naip:
 
             X = naip.read()
@@ -159,11 +162,32 @@ def main(image_shape=(128, 128, 4)):
             ]
         )
 
-    normalize_scenes(annotated_scenes)
+    return annotated_scenes
+
+
+def main(image_shape=(128, 128, 4)):
+
+    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
+
+    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))
+    print(f"found {len(naip_paths)} naip scenes")
+
+    # TODO random train/val/test split
+    training_scenes = get_annotated_scenes(
+        naip_paths[:2], cdl_label_encoder, cdl_mapping
+    )
+    validation_scenes = get_annotated_scenes(
+        naip_paths[2:4], cdl_label_encoder, cdl_mapping
+    )
+
+    X_mean_train, X_std_train = get_X_mean_and_std(training_scenes)
+
+    normalize_scenes(training_scenes, X_mean_train, X_std_train)
+    normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
     model = get_keras_model(image_shape)
 
-    training_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
+    training_generator = generator(training_scenes, cdl_label_encoder, image_shape)
     sample_batch = next(training_generator)
 
     for name, values in sample_batch[1].items():
@@ -171,8 +195,7 @@ def main(image_shape=(128, 128, 4)):
 
     print(sample_batch[0][0].shape)
 
-    # TODO Validation generator should use different scenes from training generator
-    validation_generator = generator(annotated_scenes, cdl_label_encoder, image_shape)
+    validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
 
     model.fit_generator(
         generator=training_generator,
@@ -184,9 +207,11 @@ def main(image_shape=(128, 128, 4)):
         validation_steps=4,
     )
 
-    # TODO Test generator should use different scenes from training & validation generators
+    test_scenes = get_annotated_scenes(naip_paths[4:6], cdl_label_encoder, cdl_mapping)
+    normalize_scenes(test_scenes, X_mean_train, X_std_train)
+
     test_generator = generator(
-        annotated_scenes, cdl_label_encoder, image_shape, batch_size=128
+        test_scenes, cdl_label_encoder, image_shape, batch_size=128
     )
     test_X, test_y = next(test_generator)
 
