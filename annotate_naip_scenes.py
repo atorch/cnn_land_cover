@@ -1,6 +1,7 @@
 from functools import partial
 import glob
 import os
+import subprocess
 
 import fiona
 import numpy as np
@@ -143,7 +144,13 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
     for county in counties:
 
-        road_shp = fiona.open(os.path.join(ROAD_DIR, ROAD_FORMAT.format(county=county)))
+        road_file = os.path.join(ROAD_DIR, ROAD_FORMAT.format(county=county))
+
+        if not os.path.exists(road_file):
+            print(f"{road_file} does not exist, downloading it now")
+            subprocess.call(["./scripts/download_road_shapefile.sh", county])
+
+        road_shp = fiona.open(road_file)
 
         # Note: we project from the road shapefile's CRS to the NAIP raster's CRS
         projection_fn = partial(
