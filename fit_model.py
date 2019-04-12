@@ -168,19 +168,14 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
     return annotated_scenes
 
 
-def main(image_shape=(128, 128, 4)):
-
-    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
-
-    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))
-    print(f"found {len(naip_paths)} naip scenes")
+def fit_model(naip_paths, cdl_label_encoder, cdl_mapping, image_shape):
 
     # TODO random train/val/test split
     training_scenes = get_annotated_scenes(
-        naip_paths[:2], cdl_label_encoder, cdl_mapping
+        naip_paths[:3], cdl_label_encoder, cdl_mapping
     )
     validation_scenes = get_annotated_scenes(
-        naip_paths[2:4], cdl_label_encoder, cdl_mapping
+        naip_paths[3:5], cdl_label_encoder, cdl_mapping
     )
 
     X_mean_train, X_std_train = get_X_mean_and_std(training_scenes)
@@ -210,14 +205,29 @@ def main(image_shape=(128, 128, 4)):
         verbose=True,
         callbacks=None,
         validation_data=validation_generator,
-        validation_steps=4,
+        validation_steps=6,
     )
 
-    test_scenes = get_annotated_scenes(naip_paths[4:6], cdl_label_encoder, cdl_mapping)
+    return model, X_mean_train, X_std_train
+
+
+def main(image_shape=(128, 128, 4)):
+
+    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
+
+    naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))
+    print(f"found {len(naip_paths)} naip scenes")
+
+    # TODO Pass in train and val naip paths
+    model, X_mean_train, X_std_train = fit_model(
+        naip_paths, cdl_label_encoder, cdl_mapping, image_shape
+    )
+
+    test_scenes = get_annotated_scenes(naip_paths[5:8], cdl_label_encoder, cdl_mapping)
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
     test_generator = generator(
-        test_scenes, cdl_label_encoder, image_shape, batch_size=128
+        test_scenes, cdl_label_encoder, image_shape, batch_size=256
     )
     test_X, test_y = next(test_generator)
 
