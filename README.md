@@ -3,7 +3,6 @@
 ```bash
 ./scripts/download_cdl.sh
 ./scripts/download_county_shapefile.sh
-./scripts/download_road_shapefiles.sh
 ```
 
 ```bash
