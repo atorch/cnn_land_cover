@@ -1,5 +1,6 @@
 from functools import partial
 import glob
+from multiprocessing import Pool
 import os
 import subprocess
 
@@ -21,7 +22,7 @@ CDL_FILE = "2017_30m_cdls.img"
 CDL_DIR = "./cdl"
 
 COUNTY_DIR = "./county"
-COUNTY_FILE = "tl_2018_us_county.shp"
+COUNTY_FILE = "tl_2017_us_county.shp"
 
 ROAD_ANNOTATION_DIR = "./road_annotations"
 ROAD_DIR = "./roads"
@@ -29,6 +30,7 @@ ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
 
 def get_y_x_at_pixel_centers(raster):
+
     yx_mesh = np.meshgrid(
         range(raster.meta["height"]), range(raster.meta["width"]), indexing="ij"
     )
@@ -162,6 +164,7 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
             road_geometry = shape(road["geometry"])
 
             # TODO Buffer roads (lines) before rasterizing?
+            # TODO If so, adjust the definition of has_road?
             road_geometry_transformed = transform(projection_fn, road_geometry)
 
             road_geometries.append(road_geometry_transformed)
@@ -232,25 +235,23 @@ def get_counties(raster):
     return counties
 
 
-def save_naip_annotations(naip_paths):
+def save_naip_annotations(naip_path):
 
     cdl_path = os.path.join(CDL_DIR, CDL_FILE)
     cdl = rasterio.open(cdl_path)
 
-    for naip_path in naip_paths:
+    print(f"annotating {naip_path}")
 
-        print(f"annotating {naip_path}")
+    naip = rasterio.open(naip_path)
 
-        naip = rasterio.open(naip_path)
+    naip_file = os.path.split(naip_path)[-1]
 
-        naip_file = os.path.split(naip_path)[-1]
+    counties = get_counties(naip)
+    print(f"counties: {', '.join(counties)}")
 
-        counties = get_counties(naip)
-        print(f"counties: {', '.join(counties)}")
+    save_road_annotation_for_naip_raster(counties, naip_file, naip)
 
-        save_road_annotation_for_naip_raster(counties, naip_file, naip)
-
-        save_cdl_annotation_for_naip_raster(cdl, naip_file, naip)
+    save_cdl_annotation_for_naip_raster(cdl, naip_file, naip)
 
 
 def main():
@@ -258,7 +259,9 @@ def main():
     naip_paths = glob.glob(os.path.join(NAIP_DIR, "m_*tif"))
     print(f"found {len(naip_paths)} naip scenes")
 
-    save_naip_annotations(naip_paths)
+    with Pool(10) as pool:
+
+        pool.map(save_naip_annotations, naip_paths)
 
 
 if __name__ == "__main__":

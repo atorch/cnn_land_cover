@@ -1,0 +1,25 @@
+training_scenes:
+  - ./naip/m_4609354_nw_15_1_20170921.tif
+  - ./naip/m_4609337_sw_15_1_20170921.tif
+  - ./naip/m_4609254_se_15_1_20171016.tif
+  - ./naip/m_4309211_nw_15_1_20171016.tif
+  - ./naip/m_4309207_sw_15_1_20171016.tif
+  - ./naip/m_4309109_sw_15_1_20171016.tif
+  - ./naip/m_4209064_se_15_1_20170823.tif
+  - ./naip/m_4209063_se_15_1_20170923.tif
+  - ./naip/m_4209035_se_15_1_20170715.tif
+  - ./naip/m_4209035_nw_15_1_20170715.tif
+validation_scenes:
+  - ./naip/m_4609346_ne_15_1_20170921.tif
+  - ./naip/m_4609253_se_15_1_20171016.tif
+  - ./naip/m_4309204_nw_15_1_20171016.tif
+  - ./naip/m_4309115_sw_15_1_20171016.tif
+  - ./naip/m_4108905_ne_16_1_20170805.tif
+test_scenes:
+  - ./naip/m_4609353_sw_15_1_20170921.tif
+  - ./naip/m_4509203_ne_15_1_20171016.tif
+  - ./naip/m_4309203_nw_15_1_20171016.tif
+  - ./naip/m_4309203_nw_15_1_20171016.tif
+  - ./naip/m_4309101_sw_15_1_20171016.tif
+
+# TODO Model hyperparams here

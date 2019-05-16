@@ -1,33 +1,42 @@
 import keras
 from keras.models import Model
-from keras.layers import BatchNormalization, Conv2D, Dense, Flatten, Input, MaxPooling2D
+from keras.layers import BatchNormalization, Conv2D, Dense, Dropout, Flatten, Input, MaxPooling2D
 
 
 HAS_ROADS = "has_roads"
 IS_MAJORITY_FOREST = "is_majority_forest"
 
 
-def add_keras_model_block(input_layer):
+def add_keras_model_block(input_layer, index):
 
-    conv = Conv2D(32, kernel_size=3, padding="same", activation="relu")(input_layer)
+    n_filters = 16 * (index + 1)
 
-    maxpool = MaxPooling2D()(conv)
+    conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(input_layer)
+    conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(conv1)
 
-    return BatchNormalization()(maxpool)
+    batchnorm = BatchNormalization()(conv2)
+
+    return MaxPooling2D()(batchnorm)
 
 
 def get_keras_model(image_shape):
     input_layer = Input(shape=image_shape)
 
     current_last_layer = input_layer
-    for _index in range(3):
+    for index in range(4):
 
-        current_last_layer = add_keras_model_block(current_last_layer)
+        current_last_layer = add_keras_model_block(current_last_layer, index)
 
     flat = Flatten()(current_last_layer)
 
-    output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(flat)
-    output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(flat)
+    dropout_1 = Dropout(rate=0.2)(flat)
+    dense_1 = Dense(512, activation="relu")(dropout_1)
+
+    dropout_2 = Dropout(rate=0.2)(dense_1)
+    dense_2 = Dense(32, activation="relu")(dropout_2)
+
+    output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(dense_2)
+    output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(dense_2)
 
     model = Model(inputs=input_layer, outputs=[output_forest, output_roads])
 
