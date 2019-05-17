@@ -3,5 +3,7 @@ cdl_annotations/*
 county/*
 naip/*
 roads/*
+road_annotations/*
+sample_images/*
 tl_2018_us_state/*
 qgis_project.qgz

@@ -5,12 +5,6 @@ RUN apt-get update && apt-get install -y \
     unzip \
     wget
 
-RUN pip install \
-    fiona \
-    keras \
-    numpy \
-    pyproj \
-    rasterio \
-    shapely \
-    sklearn \
-    tensorflow
+ADD requirements.txt .
+
+RUN pip install -r requirements.txt
