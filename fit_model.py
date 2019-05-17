@@ -4,6 +4,7 @@ import os
 import yaml
 
 import fiona
+import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 from shapely.geometry import Polygon
@@ -168,6 +169,23 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
     return annotated_scenes
 
 
+def save_sample_images(sample_batch, X_mean_train, X_std_train):
+
+    # TODO mkdir sample_images
+
+    # Note: pixels are of shape (n_images, width, height, band)
+    batch_X = sample_batch[0]
+
+    for image_index in range(batch_X.shape[0]):
+
+         # Note: pixels are normalized; get them back to integers in [0, 255] before saving, and use only RGB bands
+        rgb_image = (batch_X[image_index, :, :, :3] * X_std_train[:, :, :3] + X_mean_train[:, :, :3]).astype(int)
+
+        outfile = f"./sample_images/sample_{str(image_index).rjust(2, '0')}.png"
+        print(f"Saving {outfile}")
+        plt.imsave(outfile, rgb_image)
+
+
 def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     training_scenes = get_annotated_scenes(
@@ -188,12 +206,15 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
     model = get_keras_model(image_shape)
 
     training_generator = generator(training_scenes, cdl_label_encoder, image_shape)
+
     sample_batch = next(training_generator)
 
     for name, values in sample_batch[1].items():
         print(f"Sample batch of {name}: {Counter(values.flatten().tolist())}")
 
-    print(sample_batch[0][0].shape)
+    print(f"Shape of sample batch X: {sample_batch[0][0].shape}")
+
+    save_sample_images(sample_batch, X_mean_train, X_std_train)
 
     validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
 
@@ -202,7 +223,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
     model.fit_generator(
         generator=training_generator,
         steps_per_epoch=50,
-        epochs=200,
+        epochs=100,
         verbose=True,
         callbacks=None,
         validation_data=validation_generator,
@@ -217,6 +238,10 @@ def get_config(model_config):
 
         config = yaml.safe_load(infile)
 
+    assert len(set(config["training_scenes"])) == len(config["training_scenes"])
+    assert len(set(config["validation_scenes"])) == len(config["validation_scenes"])
+    assert len(set(config["test_scenes"])) == len(config["test_scenes"])
+
     assert len(set(config["training_scenes"]).intersection(config["validation_scenes"])) == 0
     assert len(set(config["test_scenes"]).intersection(config["validation_scenes"])) == 0
 
@@ -225,7 +250,7 @@ def get_config(model_config):
 
     return config
 
-def main(image_shape=(128, 128, 4), model_config="config.yml"):
+def main(image_shape=(256, 256, 4), model_config="config.yml"):
 
     config = get_config(model_config)
 

@@ -20,10 +20,11 @@ def add_keras_model_block(input_layer, index):
 
 
 def get_keras_model(image_shape):
+
     input_layer = Input(shape=image_shape)
 
     current_last_layer = input_layer
-    for index in range(4):
+    for index in range(5):
 
         current_last_layer = add_keras_model_block(current_last_layer, index)
 
@@ -33,7 +34,7 @@ def get_keras_model(image_shape):
     dense_1 = Dense(512, activation="relu")(dropout_1)
 
     dropout_2 = Dropout(rate=0.2)(dense_1)
-    dense_2 = Dense(32, activation="relu")(dropout_2)
+    dense_2 = Dense(64, activation="relu")(dropout_2)
 
     output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(dense_2)
     output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(dense_2)
