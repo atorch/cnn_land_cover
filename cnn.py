@@ -5,6 +5,7 @@ from keras.layers import BatchNormalization, Conv2D, Dense, Dropout, Flatten, In
 
 HAS_ROADS = "has_roads"
 IS_MAJORITY_FOREST = "is_majority_forest"
+MODAL_LAND_COVER = "modal_land_cover"
 
 
 def add_keras_model_block(input_layer, index):
@@ -19,7 +20,7 @@ def add_keras_model_block(input_layer, index):
     return MaxPooling2D()(batchnorm)
 
 
-def get_keras_model(image_shape):
+def get_keras_model(image_shape, n_land_cover_classes):
 
     input_layer = Input(shape=image_shape)
 
@@ -38,8 +39,9 @@ def get_keras_model(image_shape):
 
     output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(dense_2)
     output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(dense_2)
+    output_land_cover = Dense(n_land_cover_classes, activation="softmax", name=MODAL_LAND_COVER)(dense_2)
 
-    model = Model(inputs=input_layer, outputs=[output_forest, output_roads])
+    model = Model(inputs=input_layer, outputs=[output_forest, output_roads, output_land_cover])
 
     print(model.summary())
 
@@ -50,6 +52,7 @@ def get_keras_model(image_shape):
         loss={
             IS_MAJORITY_FOREST: keras.losses.binary_crossentropy,
             HAS_ROADS: keras.losses.binary_crossentropy,
+            MODAL_LAND_COVER: keras.losses.categorical_crossentropy,
         },
         metrics=["accuracy"],
     )

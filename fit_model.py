@@ -7,12 +7,13 @@ import fiona
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+from scipy import stats
 from shapely.geometry import Polygon
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
 from annotate_naip_scenes import CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
-from cnn import get_keras_model, HAS_ROADS, IS_MAJORITY_FOREST
+from cnn import get_keras_model, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER
 
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
@@ -46,25 +47,27 @@ def get_random_window(annotated_scene, image_shape, label_encoder):
 
     naip_window = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
 
-    # Note: this target variable is an indicator for whether the window is >50% forest
-    forest_code = label_encoder.transform(["forest"])[0]
-    cdl_window = int(
-        np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest_code) > 0.5
+    forest = label_encoder.transform(["forest"])[0]
+    is_majority_forest = int(
+        np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest) > 0.5
     )
 
-    # Note: this target variable is an indivator for whether the window is >(1/1000) roads
-    road_window = int(np.mean(road_values[x_start:x_end, y_start:y_end]) > 0.001)
+    # TODO This fraction should change if roads are buffered
+    has_roads = int(np.mean(road_values[x_start:x_end, y_start:y_end]) > 0.001)
 
-    return naip_window, cdl_window, road_window
+    modal_land_cover = stats.mode(cdl_values[x_start:x_end, y_start:y_end], axis=None).mode[0]
+
+    return naip_window, is_majority_forest, has_roads, modal_land_cover
 
 
 def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
     while True:
 
-        X = np.empty((batch_size,) + image_shape)
-        forest = np.empty((batch_size, 1), dtype=int)
-        roads = np.empty((batch_size, 1), dtype=int)
+        batch_X = np.empty((batch_size,) + image_shape)
+        batch_forest = np.empty((batch_size, 1), dtype=int)
+        batch_roads = np.empty((batch_size, 1), dtype=int)
+        batch_land_cover = np.zeros((batch_size, len(label_encoder.classes_)), dtype=int)
 
         scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
 
@@ -75,10 +78,13 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
                 annotated_scenes[scene_index], image_shape, label_encoder
             )
 
-            X[batch_index], forest[batch_index], roads[batch_index] = window
+            batch_X[batch_index], batch_forest[batch_index], batch_roads[batch_index], land_cover = window
+
+            # Note: this one-hot encodes land cover
+            batch_land_cover[batch_index, land_cover] = 1
 
         # Note: generator returns tuples of (inputs, targets)
-        yield (X, {IS_MAJORITY_FOREST: forest, HAS_ROADS: roads})
+        yield (batch_X, {IS_MAJORITY_FOREST: batch_forest, HAS_ROADS: batch_roads, MODAL_LAND_COVER: batch_land_cover})
 
 
 def get_X_mean_and_std(annotated_scenes):
@@ -203,7 +209,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(image_shape)
+    model = get_keras_model(image_shape, len(cdl_label_encoder.classes_))
 
     training_generator = generator(training_scenes, cdl_label_encoder, image_shape)
 
@@ -214,6 +220,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     print(f"Shape of sample batch X: {sample_batch[0][0].shape}")
 
+    # TODO Also save little json blobs describing labels
     save_sample_images(sample_batch, X_mean_train, X_std_train)
 
     validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
@@ -280,7 +287,13 @@ def main(image_shape=(256, 256, 4), model_config="config.yml"):
         )
 
         print(f"Classification report for {name}:")
-        print(classification_report(test_predictions[index], test_y[name]))
+        if name == MODAL_LAND_COVER:
+
+            print(classification_report(test_predictions[index], test_y[name], target_names=cdl_label_encoder.classes_))
+
+        else:
+
+            print(classification_report(test_predictions[index], test_y[name]))
 
 
 if __name__ == "__main__":
