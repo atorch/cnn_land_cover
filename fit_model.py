@@ -1,9 +1,11 @@
 from collections import Counter
 import glob
+import json
 import os
 import yaml
 
 import fiona
+from keras import callbacks
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
@@ -175,7 +177,7 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
     return annotated_scenes
 
 
-def save_sample_images(sample_batch, X_mean_train, X_std_train):
+def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
 
     # TODO mkdir sample_images
 
@@ -190,6 +192,19 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train):
         outfile = f"./sample_images/sample_{str(image_index).rjust(2, '0')}.png"
         print(f"Saving {outfile}")
         plt.imsave(outfile, rgb_image)
+
+        # Note: convert land cover from a one-hot vector back into a string (e.g. "forest" or "water")
+        one_hot_vector = sample_batch[1][MODAL_LAND_COVER][image_index]
+        land_cover = label_encoder.inverse_transform([one_hot_vector.argmax()])[0]
+
+        labels = {MODAL_LAND_COVER: land_cover}
+
+        for objective in [HAS_ROADS, IS_MAJORITY_FOREST]:
+            labels[objective] = int(sample_batch[1][objective][image_index][0])
+
+        outfile = outfile.replace(".png", ".txt")
+        with open(outfile, "w") as f:
+            f.write(json.dumps(labels))
 
 
 def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
@@ -220,19 +235,17 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     print(f"Shape of sample batch X: {sample_batch[0][0].shape}")
 
-    # TODO Also save little json blobs describing labels
-    save_sample_images(sample_batch, X_mean_train, X_std_train)
+    save_sample_images(sample_batch, X_mean_train, X_std_train, cdl_label_encoder)
 
     validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
 
-    # TODO Early stopping, tensorboard
-
+    # TODO Tensorboard
     model.fit_generator(
         generator=training_generator,
         steps_per_epoch=50,
         epochs=100,
         verbose=True,
-        callbacks=None,
+        callbacks=[callbacks.EarlyStopping(patience=10, monitor="val_loss")],
         validation_data=validation_generator,
         validation_steps=10,
     )
