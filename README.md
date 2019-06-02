@@ -32,6 +32,10 @@ python fit_model.py
 
 [National Agriculture Imagery Program](https://www.fsa.usda.gov/programs-and-services/aerial-photography/imagery-programs/naip-imagery/) (four-band aerial imagery, originally downloaded from [USGS Earth Explorer](https://earthexplorer.usgs.gov/?))
 
+The Cropland Data Layer (CDL) and TIGER road shapefiles are used to programmatically generate
+labels for NAIP images. See [sample_images](sample_images) for sample input images along
+with their labels (one label per objective).
+
 # Models
 
 Mini [VGG-ish model](cnn.py) with three objectives:
