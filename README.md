@@ -20,6 +20,9 @@ python fit_model.py
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
 * [ ] More objectives: buildings, semantic segmentation...
+* [ ] GPU
+* [ ] Test set confusion matrices
+* [ ] Tensorboard
 
 # Datasets
 
@@ -31,26 +34,42 @@ python fit_model.py
 
 # Models
 
-Mini [VGG-ish model](cnn.py) with two objectives:
+Mini [VGG-ish model](cnn.py) with three objectives:
 
 ```
 Classification report for is_majority_forest:
               precision    recall  f1-score   support
 
-           0       0.91      0.93      0.92       321
-           1       0.87      0.83      0.85       179
+           0       0.96      0.98      0.97       402
+           1       0.90      0.84      0.87        98
 
-    accuracy                           0.89       500
-   macro avg       0.89      0.88      0.88       500
-weighted avg       0.89      0.89      0.89       500
+    accuracy                           0.95       500
+   macro avg       0.93      0.91      0.92       500
+weighted avg       0.95      0.95      0.95       500
 
 Classification report for has_roads:
               precision    recall  f1-score   support
 
-           0       0.96      0.96      0.96       423
-           1       0.80      0.79      0.80        77
+           0       0.94      0.95      0.95       338
+           1       0.89      0.88      0.89       162
 
-    accuracy                           0.94       500
-   macro avg       0.88      0.88      0.88       500
-weighted avg       0.94      0.94      0.94       500
+    accuracy                           0.93       500
+   macro avg       0.92      0.91      0.92       500
+weighted avg       0.93      0.93      0.93       500
+
+Classification report for modal_land_cover:
+              precision    recall  f1-score   support
+
+    corn_soy       0.78      0.91      0.84       216
+   developed       0.83      0.74      0.78        34
+      forest       0.83      0.88      0.85       103
+       other       0.00      0.00      0.00         0
+     pasture       0.12      0.10      0.11        42
+       water       0.94      0.94      0.94        18
+    wetlands       0.24      0.64      0.35        11
+
+   micro avg       0.68      0.80      0.74       424
+   macro avg       0.54      0.60      0.55       424
+weighted avg       0.72      0.80      0.76       424
+ samples avg       0.68      0.68      0.68       424
 ```

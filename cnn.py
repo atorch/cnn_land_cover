@@ -35,7 +35,7 @@ def get_keras_model(image_shape, n_land_cover_classes):
     dense_1 = Dense(512, activation="relu")(dropout_1)
 
     dropout_2 = Dropout(rate=0.2)(dense_1)
-    dense_2 = Dense(64, activation="relu")(dropout_2)
+    dense_2 = Dense(128, activation="relu")(dropout_2)
 
     output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(dense_2)
     output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(dense_2)
