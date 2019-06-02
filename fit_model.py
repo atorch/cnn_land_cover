@@ -245,7 +245,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
         steps_per_epoch=50,
         epochs=100,
         verbose=True,
-        callbacks=[callbacks.EarlyStopping(patience=10, monitor="val_loss")],
+        callbacks=[callbacks.EarlyStopping(patience=20, monitor="val_loss", restore_best_weights=True)],
         validation_data=validation_generator,
         validation_steps=10,
     )

@@ -1,4 +1,6 @@
 training_scenes:
+  - ./naip/m_4209141_sw_15_1_20170908.tif
+  - ./naip/m_4209256_nw_15_1_20170908.tif
   - ./naip/m_4609354_nw_15_1_20170921.tif
   - ./naip/m_4609337_sw_15_1_20170921.tif
   - ./naip/m_4609254_se_15_1_20171016.tif
@@ -13,6 +15,8 @@ training_scenes:
   - ./naip/m_4208943_se_16_1_20170823.tif
   - ./naip/m_4209047_sw_15_1_20170823.tif
 validation_scenes:
+  - ./naip/m_4209342_nw_15_1_20170701.tif
+  - ./naip/m_4209341_nw_15_1_20170701.tif
   - ./naip/m_4609346_ne_15_1_20170921.tif
   - ./naip/m_4609253_se_15_1_20171016.tif
   - ./naip/m_4309204_nw_15_1_20171016.tif
@@ -20,6 +24,7 @@ validation_scenes:
   - ./naip/m_4108905_ne_16_1_20170805.tif
   - ./naip/m_4208941_se_16_1_20170823.tif
 test_scenes:
+  - ./naip/m_4209448_sw_15_1_20170701.tif
   - ./naip/m_4609353_sw_15_1_20170921.tif
   - ./naip/m_4509203_ne_15_1_20171016.tif
   - ./naip/m_4309203_nw_15_1_20171016.tif
