@@ -1,0 +1,1 @@
+{"modal_land_cover": "other", "has_roads": 0, "is_majority_forest": 0}

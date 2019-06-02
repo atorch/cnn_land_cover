@@ -1,0 +1,1 @@
+{"modal_land_cover": "corn_soy", "has_roads": 0, "is_majority_forest": 0}
