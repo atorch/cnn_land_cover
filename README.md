@@ -16,7 +16,7 @@ python src/fit_model.py
 
 # TODO
 
-* [ ] Download script for the NAIP scenes in [config.yml](config.yml)
+* [ ] Download script for the NAIP scenes in [model_config.yml](config/model_config.yml)
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
 * [ ] More objectives: buildings, semantic segmentation...
@@ -24,6 +24,7 @@ python src/fit_model.py
 * [ ] Test set confusion matrices
 * [ ] Tensorboard
 * [ ] Tune dropout probability, number of filters, number of blocks
+* [ ] Visualizations
 
 # Datasets
 
