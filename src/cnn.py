@@ -7,10 +7,13 @@ HAS_ROADS = "has_roads"
 IS_MAJORITY_FOREST = "is_majority_forest"
 MODAL_LAND_COVER = "modal_land_cover"
 
+BASE_N_FILTERS = 16
+ADDITIONAL_FILTERS_PER_BLOCK = 16
 
-def add_keras_model_block(input_layer, index):
 
-    n_filters = 16 * (index + 1)
+def add_keras_model_block(input_layer, block_index):
+
+    n_filters = BASE_N_FILTERS + ADDITIONAL_FILTERS_PER_BLOCK * block_index
 
     conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(input_layer)
     conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(conv1)
@@ -20,12 +23,12 @@ def add_keras_model_block(input_layer, index):
     return MaxPooling2D()(batchnorm)
 
 
-def get_keras_model(image_shape, n_land_cover_classes):
+def get_keras_model(image_shape, n_land_cover_classes, n_blocks=5):
 
     input_layer = Input(shape=image_shape)
 
     current_last_layer = input_layer
-    for index in range(5):
+    for index in range(n_blocks):
 
         current_last_layer = add_keras_model_block(current_last_layer, index)
 

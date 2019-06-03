@@ -19,8 +19,10 @@ from cnn import get_keras_model, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER
 
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
-CDL_MAPPING_FILE = "./cdl/cdl_classes.yml"
+CDL_MAPPING_FILE = "./config/cdl_classes.yml"
 CDL_CLASS_OTHER = "other"
+
+MODEL_CONFIG = "./config/model_config.yml"
 
 
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
@@ -270,9 +272,9 @@ def get_config(model_config):
 
     return config
 
-def main(image_shape=(256, 256, 4), model_config="config.yml"):
+def main(image_shape=(256, 256, 4)):
 
-    config = get_config(model_config)
+    config = get_config(MODEL_CONFIG)
 
     cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
 
