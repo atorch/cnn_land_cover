@@ -28,6 +28,9 @@ ROAD_ANNOTATION_DIR = "./road_annotations"
 ROAD_DIR = "./roads"
 ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
+# Note: buffering is applied after projecting road shapes into NAIP's CRS
+ROAD_BUFFER_METERS = 2.0
+
 
 def get_y_x_at_pixel_centers(raster):
 
@@ -163,11 +166,9 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
             road_geometry = shape(road["geometry"])
 
-            # TODO Buffer roads (lines) before rasterizing?
-            # TODO If so, adjust the definition of has_road?
             road_geometry_transformed = transform(projection_fn, road_geometry)
 
-            road_geometries.append(road_geometry_transformed)
+            road_geometries.append(road_geometry_transformed.buffer(ROAD_BUFFER_METERS))
 
     road_values = rasterize(
         road_geometries,
