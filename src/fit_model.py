@@ -15,7 +15,13 @@ from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
 from annotate_naip_scenes import CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
-from cnn import get_keras_model, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER
+from cnn import (
+    get_keras_model,
+    HAS_ROADS,
+    IS_MAJORITY_FOREST,
+    MODAL_LAND_COVER,
+    ROAD_PIXELS,
+)
 
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
@@ -38,7 +44,7 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
     return cdl_recoded
 
 
-def get_random_window(annotated_scene, image_shape, label_encoder):
+def get_random_patch(annotated_scene, image_shape, label_encoder):
 
     naip_values, cdl_values, road_values = annotated_scene
 
@@ -49,19 +55,28 @@ def get_random_window(annotated_scene, image_shape, label_encoder):
     x_end = x_start + image_shape[0]
     y_end = y_start + image_shape[1]
 
-    naip_window = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
+    naip_patch = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
 
     forest = label_encoder.transform(["forest"])[0]
     is_majority_forest = int(
         np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest) > 0.5
     )
 
-    # TODO This fraction should change if roads are buffered
-    has_roads = int(np.mean(road_values[x_start:x_end, y_start:y_end]) > 0.001)
+    road_patch = road_values[x_start:x_end, y_start:y_end]
+    has_roads = int(np.mean(road_patch) > 0.001)
 
-    modal_land_cover = stats.mode(cdl_values[x_start:x_end, y_start:y_end], axis=None).mode[0]
+    modal_land_cover = stats.mode(
+        cdl_values[x_start:x_end, y_start:y_end], axis=None
+    ).mode[0]
 
-    return naip_window, is_majority_forest, has_roads, modal_land_cover
+    labels = {
+        IS_MAJORITY_FOREST: is_majority_forest,
+        HAS_ROADS: has_roads,
+        ROAD_PIXELS: road_patch,
+        MODAL_LAND_COVER: modal_land_cover,
+    }
+
+    return naip_patch, labels
 
 
 def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
@@ -70,25 +85,39 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
         batch_X = np.empty((batch_size,) + image_shape)
         batch_forest = np.empty((batch_size, 1), dtype=int)
-        batch_roads = np.empty((batch_size, 1), dtype=int)
-        batch_land_cover = np.zeros((batch_size, len(label_encoder.classes_)), dtype=int)
+        batch_has_roads = np.empty((batch_size, 1), dtype=int)
+        batch_road_pixels = np.empty((batch_size,) + image_shape[:2] + (1,), dtype=int)
+        batch_land_cover = np.zeros(
+            (batch_size, len(label_encoder.classes_)), dtype=int
+        )
 
         scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
 
         for batch_index, scene_index in enumerate(scene_indices):
 
             # Note: annotated scenes are tuple of (NAIP, CDL annotation, road annotation)
-            window = get_random_window(
+            batch_X[batch_index], labels = get_random_patch(
                 annotated_scenes[scene_index], image_shape, label_encoder
             )
 
-            batch_X[batch_index], batch_forest[batch_index], batch_roads[batch_index], land_cover = window
+            batch_forest[batch_index] = labels[IS_MAJORITY_FOREST]
+            batch_has_roads[batch_index] = labels[HAS_ROADS]
+            batch_road_pixels[batch_index] = labels[ROAD_PIXELS]
 
-            # Note: this one-hot encodes land cover
+            # Note: this one-hot encodes land cover (array was initialized to np.zeros)
+            land_cover = labels[MODAL_LAND_COVER]
             batch_land_cover[batch_index, land_cover] = 1
 
         # Note: generator returns tuples of (inputs, targets)
-        yield (batch_X, {IS_MAJORITY_FOREST: batch_forest, HAS_ROADS: batch_roads, MODAL_LAND_COVER: batch_land_cover})
+        yield (
+            batch_X,
+            {
+                HAS_ROADS: batch_has_roads,
+                IS_MAJORITY_FOREST: batch_forest,
+                MODAL_LAND_COVER: batch_land_cover,
+                ROAD_PIXELS: batch_road_pixels,
+            },
+        )
 
 
 def get_X_mean_and_std(annotated_scenes):
@@ -188,8 +217,11 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
 
     for image_index in range(batch_X.shape[0]):
 
-         # Note: pixels are normalized; get them back to integers in [0, 255] before saving, and use only RGB bands
-        rgb_image = (batch_X[image_index, :, :, :3] * X_std_train[:, :, :3] + X_mean_train[:, :, :3]).astype(int)
+        # Note: pixels are normalized; get them back to integers in [0, 255] before saving, and use only RGB bands
+        rgb_image = (
+            batch_X[image_index, :, :, :3] * X_std_train[:, :, :3]
+            + X_mean_train[:, :, :3]
+        ).astype(int)
 
         outfile = f"./sample_images/sample_{str(image_index).rjust(2, '0')}.png"
         print(f"Saving {outfile}")
@@ -241,18 +273,23 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
 
-    # TODO Tensorboard
+    # TODO Tensorboard, predict on test scenes, save model
     model.fit_generator(
         generator=training_generator,
         steps_per_epoch=50,
         epochs=100,
         verbose=True,
-        callbacks=[callbacks.EarlyStopping(patience=20, monitor="val_loss", restore_best_weights=True)],
+        callbacks=[
+            callbacks.EarlyStopping(
+                patience=20, monitor="val_loss", restore_best_weights=True
+            )
+        ],
         validation_data=validation_generator,
         validation_steps=10,
     )
 
     return model, X_mean_train, X_std_train
+
 
 def get_config(model_config):
 
@@ -264,13 +301,19 @@ def get_config(model_config):
     assert len(set(config["validation_scenes"])) == len(config["validation_scenes"])
     assert len(set(config["test_scenes"])) == len(config["test_scenes"])
 
-    assert len(set(config["training_scenes"]).intersection(config["validation_scenes"])) == 0
-    assert len(set(config["test_scenes"]).intersection(config["validation_scenes"])) == 0
+    assert (
+        len(set(config["training_scenes"]).intersection(config["validation_scenes"]))
+        == 0
+    )
+    assert (
+        len(set(config["test_scenes"]).intersection(config["validation_scenes"])) == 0
+    )
 
     # TODO Also assert that training scenes don't intersect test or validation scenes
     # NAIP scenes can overlap by a few hundred meters
 
     return config
+
 
 def main(image_shape=(256, 256, 4)):
 
@@ -282,7 +325,9 @@ def main(image_shape=(256, 256, 4)):
         config, cdl_label_encoder, cdl_mapping, image_shape
     )
 
-    test_scenes = get_annotated_scenes(config["test_scenes"], cdl_label_encoder, cdl_mapping)
+    test_scenes = get_annotated_scenes(
+        config["test_scenes"], cdl_label_encoder, cdl_mapping
+    )
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
     test_generator = generator(
@@ -304,7 +349,21 @@ def main(image_shape=(256, 256, 4)):
         print(f"Classification report for {name}:")
         if name == MODAL_LAND_COVER:
 
-            print(classification_report(test_predictions[index], test_y[name], target_names=cdl_label_encoder.classes_))
+            print(
+                classification_report(
+                    test_predictions[index],
+                    test_y[name],
+                    target_names=cdl_label_encoder.classes_,
+                )
+            )
+
+        elif name == ROAD_PIXELS:
+
+            print(
+                classification_report(
+                    test_predictions[index].flatten(), test_y[name].flatten()
+                )
+            )
 
         else:
 

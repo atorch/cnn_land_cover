@@ -164,6 +164,8 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
         for road in road_shp:
 
+            # TODO Census road shapefiles include road types / codes
+            # Do they distinguish paved versus unpaved roads?  If so, treat them differently?
             road_geometry = shape(road["geometry"])
 
             road_geometry_transformed = transform(projection_fn, road_geometry)
