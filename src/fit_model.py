@@ -5,6 +5,7 @@ import os
 import yaml
 
 import fiona
+import keras
 from keras import callbacks
 import matplotlib.pyplot as plt
 import numpy as np
@@ -122,7 +123,7 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
 def get_X_mean_and_std(annotated_scenes):
 
-    # Note: annotated scene shapres are (x, y, band)
+    # Note: annotated scene shapes are (x, y, band)
 
     X_sizes = [X.size for X, *y in annotated_scenes]
     X_means = [X.mean(axis=(0, 1)) for X, *y in annotated_scenes]
@@ -141,16 +142,20 @@ def get_X_mean_and_std(annotated_scenes):
     return X_mean, X_std
 
 
+def get_X_normalized(X, X_mean, X_std):
+
+    X_normalized = (X - X_mean) / X_std
+    return X_normalized.astype(np.float32)
+
+
 def normalize_scenes(annotated_scenes, X_mean, X_std):
 
     # Note: use training mean and std when normalizing validation and test scenes (avoid leakage)!
 
     for index, (X, *y) in enumerate(annotated_scenes):
 
-        X_normalized = (X - X_mean) / X_std
-
         # Note: this modifies annotated_scenes in place
-        annotated_scenes[index][0] = X_normalized.astype(np.float32)
+        annotated_scenes[index][0] = get_X_normalized(X, X_mean, X_std)
 
 
 def get_cdl_label_encoder_and_mapping():
@@ -196,7 +201,7 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
 
             y_road = naip_road.read()
 
-        # Note: swap NAIP and CDL shape from (band, y, x) to (x, y, band)
+        # Note: swap NAIP and CDL shape from (band, height, width) to (width, height, band)
         annotated_scenes.append(
             [
                 np.swapaxes(X, 0, 2),
@@ -223,9 +228,9 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
             + X_mean_train[:, :, :3]
         ).astype(int)
 
-        outfile = f"./sample_images/sample_{str(image_index).rjust(2, '0')}.png"
-        print(f"Saving {outfile}")
-        plt.imsave(outfile, rgb_image)
+        outpath = f"./sample_images/sample_{str(image_index).rjust(2, '0')}.png"
+        print(f"Saving {outpath}")
+        plt.imsave(outpath, rgb_image)
 
         # Note: convert land cover from a one-hot vector back into a string (e.g. "forest" or "water")
         one_hot_vector = sample_batch[1][MODAL_LAND_COVER][image_index]
@@ -236,9 +241,9 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
         for objective in [HAS_ROADS, IS_MAJORITY_FOREST]:
             labels[objective] = int(sample_batch[1][objective][image_index][0])
 
-        outfile = outfile.replace(".png", ".txt")
-        with open(outfile, "w") as f:
-            f.write(json.dumps(labels))
+        outpath = outpath.replace(".png", ".txt")
+        with open(outpath, "w") as outfile:
+            outfile.write(json.dumps(labels))
 
 
 def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
@@ -273,7 +278,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
 
-    # TODO Tensorboard, predict on test scenes, save model
+    # TODO Tensorboard
     model.fit_generator(
         generator=training_generator,
         steps_per_epoch=50,
@@ -315,30 +320,18 @@ def get_config(model_config):
     return config
 
 
-def main(image_shape=(256, 256, 4)):
+def get_output_names(model):
 
-    config = get_config(MODEL_CONFIG)
+    # Note: example name is "is_majority_forest/Sigmoid" -- get the part before the "/"
+    # TODO Why do names have an extra "_1" suffix after model is saved (but not before?)
+    return [x.op.name.split("/")[0].replace("_1", "") for x in model.outputs]
 
-    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
 
-    model, X_mean_train, X_std_train = fit_model(
-        config, cdl_label_encoder, cdl_mapping, image_shape
-    )
-
-    test_scenes = get_annotated_scenes(
-        config["test_scenes"], cdl_label_encoder, cdl_mapping
-    )
-    normalize_scenes(test_scenes, X_mean_train, X_std_train)
-
-    test_generator = generator(
-        test_scenes, cdl_label_encoder, image_shape, batch_size=500
-    )
-    test_X, test_y = next(test_generator)
+def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
 
     test_predictions = model.predict(test_X)
 
-    # Note: example name is "is_majority_forest/Sigmoid", need the part before the /
-    output_names = [x.op.name.split("/")[0] for x in model.outputs]
+    output_names = get_output_names(model)
 
     for index, name in enumerate(output_names):
 
@@ -351,8 +344,8 @@ def main(image_shape=(256, 256, 4)):
 
             print(
                 classification_report(
-                    test_predictions[index],
-                    test_y[name],
+                    y_pred=test_predictions[index],
+                    y_true=test_y[name],
                     target_names=cdl_label_encoder.classes_,
                 )
             )
@@ -361,13 +354,94 @@ def main(image_shape=(256, 256, 4)):
 
             print(
                 classification_report(
-                    test_predictions[index].flatten(), test_y[name].flatten()
+                    y_pred=test_predictions[index].flatten(),
+                    y_true=test_y[name].flatten(),
                 )
             )
 
         else:
 
-            print(classification_report(test_predictions[index], test_y[name]))
+            print(
+                classification_report(
+                    y_pred=test_predictions[index], y_true=test_y[name]
+                )
+            )
+
+
+def predict_on_entire_scene(model, naip_path, X_mean_train, X_std_train):
+
+    print(f"Predicting on {naip_path}")
+    with rasterio.open(naip_path) as naip:
+
+        X = naip.read()
+        profile = naip.profile
+
+    # Swap shape from (band, height, width) to (width, height, band)
+    X = np.swapaxes(X, 0, 2)
+    X_normalized = get_X_normalized(X, X_mean_train, X_std_train)
+
+    # Predictions have shape (width, height, 1)
+    predictions = np.zeros(X_normalized.shape[:2] + (1,))
+
+    image_shape = tuple(int(x) for x in model.input.shape[1:])
+
+    output_names = get_output_names(model)
+    pixels_output_index = np.where(np.array(output_names) == ROAD_PIXELS)[0][0]
+
+    for i in range(X.shape[0] // image_shape[0]):
+        for j in range(X.shape[1] // image_shape[1]):
+
+            range0 = range((image_shape[0] * i), (image_shape[0] * (i + 1)))
+            range1 = range((image_shape[1] * j), (image_shape[1] * (j + 1)))
+            indices = np.ix_(range0, range1)
+
+            X_patch = X_normalized[indices]
+            X_patch = X_patch[np.newaxis, :, :, :]
+
+            predictions_patch = model.predict(X_patch)
+            predictions[indices] = predictions_patch[pixels_output_index]
+
+    profile["dtype"] = str(predictions.dtype)
+    profile["count"] = 1
+
+    naip_file = os.path.split(naip_path)[1]
+    outpath = os.path.join("predictions", naip_file.replace(".tif", "_predictions.tif"))
+
+    print(f"Saving {outpath}")
+
+    with rasterio.open(outpath, "w", **profile) as outfile:
+
+        outfile.write(predictions[:, :, 0].transpose(), 1)
+
+
+def main(image_shape=(256, 256, 4)):
+
+    config = get_config(MODEL_CONFIG)
+
+    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
+
+    model, X_mean_train, X_std_train = fit_model(
+        config, cdl_label_encoder, cdl_mapping, image_shape
+    )
+
+    # TODO Filename  # TODO Also save X_{mean,std}_train
+    model.save("my_model.h5")
+
+    test_scenes = get_annotated_scenes(
+        config["test_scenes"], cdl_label_encoder, cdl_mapping
+    )
+    normalize_scenes(test_scenes, X_mean_train, X_std_train)
+
+    test_generator = generator(
+        test_scenes, cdl_label_encoder, image_shape, batch_size=600
+    )
+    test_X, test_y = next(test_generator)
+
+    print_classification_reports(test_X, test_y, model, cdl_label_encoder)
+
+    for test_scene in config["test_scenes"]:
+
+        predict_on_entire_scene(model, test_scene, X_mean_train, X_std_train)
 
 
 if __name__ == "__main__":

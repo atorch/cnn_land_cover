@@ -3,8 +3,10 @@ cdl/*
 cdl_annotations/*
 county/*
 naip/*
+predictions/*
 roads/*
 road_annotations/*
 sample_images/*
 tl_2018_us_state/*
 *pyc
+*.h5
