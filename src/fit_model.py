@@ -35,7 +35,9 @@ MODEL_CONFIG = "./config/model_config.yml"
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
 
     encoded_other = label_encoder.transform([CDL_CLASS_OTHER])[0]
-    cdl_recoded = np.full(cdl_values.shape, encoded_other)
+
+    # Note: preserve CDL dtype (uint8) to save memory
+    cdl_recoded = np.full(cdl_values.shape, encoded_other, dtype=cdl_values.dtype)
 
     for cdl_class_string, cdl_class_ints in cdl_mapping.items():
 
@@ -247,6 +249,8 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
 
 
 def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
+
+    # TODO Print total number of unique images (of image_shape) in training scenes
 
     training_scenes = get_annotated_scenes(
         config["training_scenes"], cdl_label_encoder, cdl_mapping
