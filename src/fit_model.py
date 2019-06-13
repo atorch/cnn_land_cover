@@ -250,11 +250,16 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
 
 def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
-    # TODO Print total number of unique images (of image_shape) in training scenes
-
     training_scenes = get_annotated_scenes(
         config["training_scenes"], cdl_label_encoder, cdl_mapping
     )
+
+    unique_training_images = sum([
+        (x[0].shape[0] // image_shape[0]) * (x[0].shape[1] // image_shape[1])
+        for x in training_scenes
+    ])
+    print(f"Done loading {len(training_scenes)} training scenes containing {unique_training_images} unique images of shape {image_shape}")
+
     validation_scenes = get_annotated_scenes(
         config["validation_scenes"], cdl_label_encoder, cdl_mapping
     )

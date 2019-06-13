@@ -1,4 +1,7 @@
 training_scenes:
+  - ./naip/m_4109258_se_15_1_20170723.tif
+  - ./naip/m_4009202_se_15_1_20170811.tif
+  - ./naip/m_4109007_ne_15_1_20170823.tif
   - ./naip/m_4109326_ne_15_1_20170701.tif
   - ./naip/m_4209638_nw_14_1_20170716.tif
   - ./naip/m_4209141_sw_15_1_20170908.tif
@@ -17,6 +20,7 @@ training_scenes:
   - ./naip/m_4208943_se_16_1_20170823.tif
   - ./naip/m_4209047_sw_15_1_20170823.tif
 validation_scenes:
+  - ./naip/m_4609334_se_15_1_20170715.tif
   - ./naip/m_4009122_sw_15_1_20170809.tif
   - ./naip/m_4109328_ne_15_1_20170701.tif
   - ./naip/m_4209342_nw_15_1_20170701.tif
@@ -38,5 +42,6 @@ test_scenes:
   - ./naip/m_4309203_nw_15_1_20171016.tif
   - ./naip/m_4108802_se_16_1_20170702.tif
   - ./naip/m_4309101_sw_15_1_20171016.tif
+  - ./naip/m_4009048_se_15_1_20170725.tif
 
 # TODO Model hyperparams here
