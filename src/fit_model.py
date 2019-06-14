@@ -7,6 +7,7 @@ import yaml
 import fiona
 import keras
 from keras import callbacks
+from keras.utils import plot_model
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
@@ -21,7 +22,8 @@ from cnn import (
     HAS_ROADS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
-    ROAD_PIXELS,
+    PIXELS,
+    N_PIXEL_CLASSES,
 )
 
 
@@ -68,15 +70,29 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     road_patch = road_values[x_start:x_end, y_start:y_end]
     has_roads = int(np.mean(road_patch) > 0.001)
 
-    modal_land_cover = stats.mode(
-        cdl_values[x_start:x_end, y_start:y_end], axis=None
-    ).mode[0]
+    cdl_patch = cdl_values[x_start:x_end, y_start:y_end]
+
+    modal_land_cover = stats.mode(cdl_patch, axis=None).mode[0]
+
+    # TODO One-hot encode pixels such that pixels.sum(axis=2) is 1 everywhere -- put this in a function, clean it up
+    pixels = np.zeros(image_shape[:2] + (N_PIXEL_CLASSES,))
+    pixels[:, :, 1][np.where(road_patch[:, :, 0])] = 1
+    pixels[:, :, 2][
+        np.where(
+            np.logical_and(
+                cdl_patch[:, :, 0] == forest, np.logical_not(pixels[:, :, 1])
+            )
+        )
+    ] = 1
+    pixels[:, :, 0][
+        np.where(np.logical_not(np.logical_or(pixels[:, :, 1], pixels[:, :, 2])))
+    ] = 1
 
     labels = {
-        IS_MAJORITY_FOREST: is_majority_forest,
         HAS_ROADS: has_roads,
-        ROAD_PIXELS: road_patch,
+        IS_MAJORITY_FOREST: is_majority_forest,
         MODAL_LAND_COVER: modal_land_cover,
+        PIXELS: pixels,
     }
 
     return naip_patch, labels
@@ -84,12 +100,18 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
 
 def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
+    # TODO Better sampling scheme than uniform, compare accuracy
+    # Try distribution with a higher probability of seeing entire NAIP scene (uniform will overlap)
+    # TODO Augmentation (flips)? Worth the extra computation?
+
     while True:
 
         batch_X = np.empty((batch_size,) + image_shape)
         batch_forest = np.empty((batch_size, 1), dtype=int)
         batch_has_roads = np.empty((batch_size, 1), dtype=int)
-        batch_road_pixels = np.empty((batch_size,) + image_shape[:2] + (1,), dtype=int)
+        batch_pixels = np.empty(
+            (batch_size,) + image_shape[:2] + (N_PIXEL_CLASSES,), dtype=int
+        )
         batch_land_cover = np.zeros(
             (batch_size, len(label_encoder.classes_)), dtype=int
         )
@@ -105,7 +127,7 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
             batch_forest[batch_index] = labels[IS_MAJORITY_FOREST]
             batch_has_roads[batch_index] = labels[HAS_ROADS]
-            batch_road_pixels[batch_index] = labels[ROAD_PIXELS]
+            batch_pixels[batch_index] = labels[PIXELS]
 
             # Note: this one-hot encodes land cover (array was initialized to np.zeros)
             land_cover = labels[MODAL_LAND_COVER]
@@ -118,7 +140,7 @@ def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
                 HAS_ROADS: batch_has_roads,
                 IS_MAJORITY_FOREST: batch_forest,
                 MODAL_LAND_COVER: batch_land_cover,
-                ROAD_PIXELS: batch_road_pixels,
+                PIXELS: batch_pixels,
             },
         )
 
@@ -254,11 +276,15 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
         config["training_scenes"], cdl_label_encoder, cdl_mapping
     )
 
-    unique_training_images = sum([
-        (x[0].shape[0] // image_shape[0]) * (x[0].shape[1] // image_shape[1])
-        for x in training_scenes
-    ])
-    print(f"Done loading {len(training_scenes)} training scenes containing {unique_training_images} unique images of shape {image_shape}")
+    unique_training_images = sum(
+        [
+            (x[0].shape[0] // image_shape[0]) * (x[0].shape[1] // image_shape[1])
+            for x in training_scenes
+        ]
+    )
+    print(
+        f"Done loading {len(training_scenes)} training scenes containing {unique_training_images} unique images of shape {image_shape}"
+    )
 
     validation_scenes = get_annotated_scenes(
         config["validation_scenes"], cdl_label_encoder, cdl_mapping
@@ -274,6 +300,8 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     model = get_keras_model(image_shape, len(cdl_label_encoder.classes_))
 
+    # plot_model(model, to_file='model.png')
+
     training_generator = generator(training_scenes, cdl_label_encoder, image_shape)
 
     sample_batch = next(training_generator)
@@ -288,7 +316,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
     validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
 
     # TODO Tensorboard
-    model.fit_generator(
+    history = model.fit_generator(
         generator=training_generator,
         steps_per_epoch=50,
         epochs=100,
@@ -344,31 +372,34 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
 
     for index, name in enumerate(output_names):
 
-        test_predictions[index] = (test_predictions[index] > 0.5).astype(
-            test_y[name].dtype
-        )
-
         print(f"Classification report for {name}:")
         if name == MODAL_LAND_COVER:
 
             print(
                 classification_report(
-                    y_pred=test_predictions[index],
-                    y_true=test_y[name],
+                    y_pred=test_predictions[index].argmax(axis=-1),
+                    y_true=test_y[name].argmax(axis=-1),
                     target_names=cdl_label_encoder.classes_,
                 )
             )
 
-        elif name == ROAD_PIXELS:
+        elif name == PIXELS:
 
             print(
                 classification_report(
-                    y_pred=test_predictions[index].flatten(),
-                    y_true=test_y[name].flatten(),
+                    y_pred=test_predictions[index].argmax(axis=-1).flatten(),
+                    y_true=test_y[name].argmax(axis=-1).flatten(),
+                    # TODO Clean this up
+                    target_names=["other", "road", "forest"],
                 )
             )
 
         else:
+
+            # Note: this assumes these are binary classification problems!
+            test_predictions[index] = (test_predictions[index] > 0.5).astype(
+                test_y[name].dtype
+            )
 
             print(
                 classification_report(
@@ -390,12 +421,12 @@ def predict_on_entire_scene(model, naip_path, X_mean_train, X_std_train):
     X_normalized = get_X_normalized(X, X_mean_train, X_std_train)
 
     # Predictions have shape (width, height, 1)
-    predictions = np.zeros(X_normalized.shape[:2] + (1,))
+    predictions = np.zeros(X_normalized.shape[:2] + (N_PIXEL_CLASSES,))
 
     image_shape = tuple(int(x) for x in model.input.shape[1:])
 
     output_names = get_output_names(model)
-    pixels_output_index = np.where(np.array(output_names) == ROAD_PIXELS)[0][0]
+    pixels_output_index = np.where(np.array(output_names) == PIXELS)[0][0]
 
     for i in range(X.shape[0] // image_shape[0]):
         for j in range(X.shape[1] // image_shape[1]):
@@ -411,7 +442,7 @@ def predict_on_entire_scene(model, naip_path, X_mean_train, X_std_train):
             predictions[indices] = predictions_patch[pixels_output_index]
 
     profile["dtype"] = str(predictions.dtype)
-    profile["count"] = 1
+    profile["count"] = N_PIXEL_CLASSES
 
     naip_file = os.path.split(naip_path)[1]
     outpath = os.path.join("predictions", naip_file.replace(".tif", "_predictions.tif"))
@@ -420,7 +451,10 @@ def predict_on_entire_scene(model, naip_path, X_mean_train, X_std_train):
 
     with rasterio.open(outpath, "w", **profile) as outfile:
 
-        outfile.write(predictions[:, :, 0].transpose(), 1)
+        for index in range(N_PIXEL_CLASSES):
+
+            # Note: rasterio band indices start with 1, not 0
+            outfile.write(predictions[:, :, index].transpose(), index + 1)
 
 
 def main(image_shape=(256, 256, 4)):
