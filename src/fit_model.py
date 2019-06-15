@@ -1,17 +1,14 @@
 from collections import Counter
-import glob
 import json
 import os
 import yaml
 
-import fiona
 import keras
 from keras import callbacks
 from keras.utils import plot_model
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
-from scipy import stats
 from shapely.geometry import Polygon
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
@@ -25,6 +22,7 @@ from cnn import (
     PIXELS,
     N_PIXEL_CLASSES,
 )
+from generator import get_generator
 
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
@@ -47,102 +45,6 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
         cdl_recoded[np.isin(cdl_values, cdl_class_ints)] = encoded_cdl_class
 
     return cdl_recoded
-
-
-def get_random_patch(annotated_scene, image_shape, label_encoder):
-
-    naip_values, cdl_values, road_values = annotated_scene
-
-    # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
-    x_start = np.random.choice(range(naip_values.shape[0] - image_shape[0]))
-    y_start = np.random.choice(range(naip_values.shape[1] - image_shape[1]))
-
-    x_end = x_start + image_shape[0]
-    y_end = y_start + image_shape[1]
-
-    naip_patch = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
-
-    forest = label_encoder.transform(["forest"])[0]
-    is_majority_forest = int(
-        np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest) > 0.5
-    )
-
-    road_patch = road_values[x_start:x_end, y_start:y_end]
-    has_roads = int(np.mean(road_patch) > 0.001)
-
-    cdl_patch = cdl_values[x_start:x_end, y_start:y_end]
-
-    modal_land_cover = stats.mode(cdl_patch, axis=None).mode[0]
-
-    # TODO One-hot encode pixels such that pixels.sum(axis=2) is 1 everywhere -- put this in a function, clean it up
-    pixels = np.zeros(image_shape[:2] + (N_PIXEL_CLASSES,))
-    pixels[:, :, 1][np.where(road_patch[:, :, 0])] = 1
-    pixels[:, :, 2][
-        np.where(
-            np.logical_and(
-                cdl_patch[:, :, 0] == forest, np.logical_not(pixels[:, :, 1])
-            )
-        )
-    ] = 1
-    pixels[:, :, 0][
-        np.where(np.logical_not(np.logical_or(pixels[:, :, 1], pixels[:, :, 2])))
-    ] = 1
-
-    labels = {
-        HAS_ROADS: has_roads,
-        IS_MAJORITY_FOREST: is_majority_forest,
-        MODAL_LAND_COVER: modal_land_cover,
-        PIXELS: pixels,
-    }
-
-    return naip_patch, labels
-
-
-def generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
-
-    # TODO Better sampling scheme than uniform, compare accuracy
-    # Try distribution with a higher probability of seeing entire NAIP scene (uniform will overlap)
-    # TODO Augmentation (flips)? Worth the extra computation?
-
-    while True:
-
-        batch_X = np.empty((batch_size,) + image_shape)
-        batch_forest = np.empty((batch_size, 1), dtype=int)
-        batch_has_roads = np.empty((batch_size, 1), dtype=int)
-        batch_pixels = np.empty(
-            (batch_size,) + image_shape[:2] + (N_PIXEL_CLASSES,), dtype=int
-        )
-        batch_land_cover = np.zeros(
-            (batch_size, len(label_encoder.classes_)), dtype=int
-        )
-
-        scene_indices = np.random.choice(range(len(annotated_scenes)), size=batch_size)
-
-        for batch_index, scene_index in enumerate(scene_indices):
-
-            # Note: annotated scenes are tuple of (NAIP, CDL annotation, road annotation)
-            batch_X[batch_index], labels = get_random_patch(
-                annotated_scenes[scene_index], image_shape, label_encoder
-            )
-
-            batch_forest[batch_index] = labels[IS_MAJORITY_FOREST]
-            batch_has_roads[batch_index] = labels[HAS_ROADS]
-            batch_pixels[batch_index] = labels[PIXELS]
-
-            # Note: this one-hot encodes land cover (array was initialized to np.zeros)
-            land_cover = labels[MODAL_LAND_COVER]
-            batch_land_cover[batch_index, land_cover] = 1
-
-        # Note: generator returns tuples of (inputs, targets)
-        yield (
-            batch_X,
-            {
-                HAS_ROADS: batch_has_roads,
-                IS_MAJORITY_FOREST: batch_forest,
-                MODAL_LAND_COVER: batch_land_cover,
-                PIXELS: batch_pixels,
-            },
-        )
 
 
 def get_X_mean_and_std(annotated_scenes):
@@ -302,7 +204,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     # plot_model(model, to_file='model.png')
 
-    training_generator = generator(training_scenes, cdl_label_encoder, image_shape)
+    training_generator = get_generator(training_scenes, cdl_label_encoder, image_shape)
 
     sample_batch = next(training_generator)
 
@@ -313,7 +215,9 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     save_sample_images(sample_batch, X_mean_train, X_std_train, cdl_label_encoder)
 
-    validation_generator = generator(validation_scenes, cdl_label_encoder, image_shape)
+    validation_generator = get_generator(
+        validation_scenes, cdl_label_encoder, image_shape
+    )
 
     # TODO Tensorboard
     history = model.fit_generator(
@@ -389,8 +293,8 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
                 classification_report(
                     y_pred=test_predictions[index].argmax(axis=-1).flatten(),
                     y_true=test_y[name].argmax(axis=-1).flatten(),
-                    # TODO Clean this up
-                    target_names=["other", "road", "forest"],
+                    # TODO Clean this up!  Needs to be consistent with get_one_hot_encoded_pixels
+                    target_names=["other", "road", "forest", "water"],
                 )
             )
 
@@ -409,6 +313,8 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
 
 
 def predict_on_entire_scene(model, naip_path, X_mean_train, X_std_train):
+
+    # TODO Try predicting in one pass with fully convolutional model
 
     print(f"Predicting on {naip_path}")
     with rasterio.open(naip_path) as naip:
@@ -475,7 +381,7 @@ def main(image_shape=(256, 256, 4)):
     )
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
-    test_generator = generator(
+    test_generator = get_generator(
         test_scenes, cdl_label_encoder, image_shape, batch_size=600
     )
     test_X, test_y = next(test_generator)

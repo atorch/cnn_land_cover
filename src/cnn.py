@@ -18,9 +18,8 @@ IS_MAJORITY_FOREST = "is_majority_forest"
 MODAL_LAND_COVER = "modal_land_cover"
 PIXELS = "pixels"
 
-# TODO Clean this up
-# For now, pixel classes are road, forest, other
-N_PIXEL_CLASSES = 3
+# TODO Clean this up! Needs to be consistent with get_one_hot_encoded_pixels
+N_PIXEL_CLASSES = 4
 
 BASE_N_FILTERS = 16
 ADDITIONAL_FILTERS_PER_BLOCK = 16
@@ -57,9 +56,7 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
 
     concat = concatenate([upsample, downsampling_conv2_layers[block_index - 1]])
 
-    conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(
-        concat
-    )
+    conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(concat)
     conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(conv1)
 
     return BatchNormalization()(conv2)
@@ -75,7 +72,9 @@ def get_keras_model(image_shape, n_land_cover_classes):
     current_last_layer = input_layer
     for index in range(N_BLOCKS):
 
-        current_last_layer = add_downsampling_block(current_last_layer, index, downsampling_conv2_layers)
+        current_last_layer = add_downsampling_block(
+            current_last_layer, index, downsampling_conv2_layers
+        )
 
     flat = Flatten()(current_last_layer)
 
@@ -93,7 +92,9 @@ def get_keras_model(image_shape, n_land_cover_classes):
 
     for index in range(N_BLOCKS - 1, 0, -1):
 
-        current_last_layer = add_upsampling_block(current_last_layer, index, downsampling_conv2_layers)
+        current_last_layer = add_upsampling_block(
+            current_last_layer, index, downsampling_conv2_layers
+        )
 
     output_pixels = Conv2D(N_PIXEL_CLASSES, 1, activation="softmax", name=PIXELS)(
         current_last_layer
