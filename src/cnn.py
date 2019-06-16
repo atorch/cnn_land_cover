@@ -2,16 +2,16 @@ import keras
 from keras.models import Model
 from keras.layers import (
     BatchNormalization,
-    concatenate,
     Conv2D,
     Dense,
     Dropout,
     Flatten,
+    GlobalAveragePooling2D,
     Input,
     MaxPooling2D,
     UpSampling2D,
+    concatenate,
 )
-
 
 HAS_ROADS = "has_roads"
 IS_MAJORITY_FOREST = "is_majority_forest"
@@ -24,7 +24,9 @@ N_PIXEL_CLASSES = 4
 BASE_N_FILTERS = 16
 ADDITIONAL_FILTERS_PER_BLOCK = 16
 
-N_BLOCKS = 5
+N_BLOCKS = 6
+
+DROPOUT_RATE = 0.1
 
 
 def add_downsampling_block(input_layer, block_index, downsampling_conv2_layers):
@@ -34,7 +36,8 @@ def add_downsampling_block(input_layer, block_index, downsampling_conv2_layers):
     conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(
         input_layer
     )
-    conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(conv1)
+    dropout = Dropout(rate=DROPOUT_RATE)(conv1)
+    conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(dropout)
 
     downsampling_conv2_layers[block_index] = conv2
 
@@ -64,7 +67,8 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
 
 def get_keras_model(image_shape, n_land_cover_classes):
 
-    input_layer = Input(shape=image_shape)
+    # Note: model is fully convolutional, so image width and height can be arbitrary
+    input_layer = Input(shape=(None, None, image_shape[2]))
 
     # Note: Keep track of conv2 layers so that they can be connected to the upsampling blocks
     downsampling_conv2_layers = {}
@@ -76,19 +80,13 @@ def get_keras_model(image_shape, n_land_cover_classes):
             current_last_layer, index, downsampling_conv2_layers
         )
 
-    flat = Flatten()(current_last_layer)
+    maxpool = GlobalAveragePooling2D()(current_last_layer)
 
-    dropout_1 = Dropout(rate=0.2)(flat)
-    dense_1 = Dense(512, activation="relu")(dropout_1)
-
-    dropout_2 = Dropout(rate=0.2)(dense_1)
-    dense_2 = Dense(128, activation="relu")(dropout_2)
-
-    output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(dense_2)
-    output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(dense_2)
+    output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(maxpool)
+    output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(maxpool)
     output_land_cover = Dense(
         n_land_cover_classes, activation="softmax", name=MODAL_LAND_COVER
-    )(dense_2)
+    )(maxpool)
 
     for index in range(N_BLOCKS - 1, 0, -1):
 
@@ -121,3 +119,10 @@ def get_keras_model(image_shape, n_land_cover_classes):
     )
 
     return model
+
+
+def get_output_names(model):
+
+    # Note: example name is "is_majority_forest/Sigmoid" -- get the part before the "/"
+    # TODO Why do names have an extra "_1" suffix after model is saved (but not before?)
+    return [x.op.name.split("/")[0].replace("_1", "") for x in model.outputs]

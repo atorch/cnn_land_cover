@@ -16,6 +16,7 @@ from sklearn.preprocessing import LabelEncoder
 from annotate_naip_scenes import CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
 from cnn import (
     get_keras_model,
+    get_output_names,
     HAS_ROADS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
@@ -23,6 +24,11 @@ from cnn import (
     N_PIXEL_CLASSES,
 )
 from generator import get_generator
+from normalization import get_X_mean_and_std, get_X_normalized, normalize_scenes
+from prediction import predict_pixels_entire_scene
+
+
+IMAGE_SHAPE = (256, 256, 4)
 
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
@@ -47,43 +53,6 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
     return cdl_recoded
 
 
-def get_X_mean_and_std(annotated_scenes):
-
-    # Note: annotated scene shapes are (x, y, band)
-
-    X_sizes = [X.size for X, *y in annotated_scenes]
-    X_means = [X.mean(axis=(0, 1)) for X, *y in annotated_scenes]
-    X_vars = [X.var(axis=(0, 1)) for X, *y in annotated_scenes]
-
-    # Note: this produces the same result as
-    #  np.hstack((X.flatten() for X, Y in annotated_scenes)).mean()
-    # but uses less memory
-    X_mean = np.average(X_means, weights=X_sizes, axis=0)
-    X_var = np.average(X_vars, weights=X_sizes, axis=0)
-    X_std = np.sqrt(X_var)
-
-    X_mean = X_mean.reshape((1, 1, X_mean.size))
-    X_std = X_std.reshape((1, 1, X_std.size))
-
-    return X_mean, X_std
-
-
-def get_X_normalized(X, X_mean, X_std):
-
-    X_normalized = (X - X_mean) / X_std
-    return X_normalized.astype(np.float32)
-
-
-def normalize_scenes(annotated_scenes, X_mean, X_std):
-
-    # Note: use training mean and std when normalizing validation and test scenes (avoid leakage)!
-
-    for index, (X, *y) in enumerate(annotated_scenes):
-
-        # Note: this modifies annotated_scenes in place
-        annotated_scenes[index][0] = get_X_normalized(X, X_mean, X_std)
-
-
 def get_cdl_label_encoder_and_mapping():
 
     with open(CDL_MAPPING_FILE, "r") as infile:
@@ -92,6 +61,7 @@ def get_cdl_label_encoder_and_mapping():
 
     cdl_label_encoder = LabelEncoder()
 
+    # TODO Buggy if not all cdl_classes are present in the training set?
     cdl_classes = list(cdl_mapping.keys()) + [CDL_CLASS_OTHER]
     cdl_label_encoder.fit(cdl_classes)
 
@@ -172,7 +142,7 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
             outfile.write(json.dumps(labels))
 
 
-def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
+def fit_model(config, cdl_label_encoder, cdl_mapping):
 
     training_scenes = get_annotated_scenes(
         config["training_scenes"], cdl_label_encoder, cdl_mapping
@@ -180,12 +150,12 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
 
     unique_training_images = sum(
         [
-            (x[0].shape[0] // image_shape[0]) * (x[0].shape[1] // image_shape[1])
+            (x[0].shape[0] // IMAGE_SHAPE[0]) * (x[0].shape[1] // IMAGE_SHAPE[1])
             for x in training_scenes
         ]
     )
     print(
-        f"Done loading {len(training_scenes)} training scenes containing {unique_training_images} unique images of shape {image_shape}"
+        f"Done loading {len(training_scenes)} training scenes containing {unique_training_images} unique images of shape {IMAGE_SHAPE}"
     )
 
     validation_scenes = get_annotated_scenes(
@@ -200,11 +170,11 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(image_shape, len(cdl_label_encoder.classes_))
+    model = get_keras_model(IMAGE_SHAPE, len(cdl_label_encoder.classes_))
 
     # plot_model(model, to_file='model.png')
 
-    training_generator = get_generator(training_scenes, cdl_label_encoder, image_shape)
+    training_generator = get_generator(training_scenes, cdl_label_encoder, IMAGE_SHAPE)
 
     sample_batch = next(training_generator)
 
@@ -216,7 +186,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping, image_shape):
     save_sample_images(sample_batch, X_mean_train, X_std_train, cdl_label_encoder)
 
     validation_generator = get_generator(
-        validation_scenes, cdl_label_encoder, image_shape
+        validation_scenes, cdl_label_encoder, IMAGE_SHAPE
     )
 
     # TODO Tensorboard
@@ -261,13 +231,6 @@ def get_config(model_config):
     return config
 
 
-def get_output_names(model):
-
-    # Note: example name is "is_majority_forest/Sigmoid" -- get the part before the "/"
-    # TODO Why do names have an extra "_1" suffix after model is saved (but not before?)
-    return [x.op.name.split("/")[0].replace("_1", "") for x in model.outputs]
-
-
 def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
 
     test_predictions = model.predict(test_X)
@@ -284,6 +247,7 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
                     y_pred=test_predictions[index].argmax(axis=-1),
                     y_true=test_y[name].argmax(axis=-1),
                     target_names=cdl_label_encoder.classes_,
+                    labels=range(len(cdl_label_encoder.classes_)),
                 )
             )
 
@@ -312,66 +276,13 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
             )
 
 
-def predict_on_entire_scene(model, naip_path, X_mean_train, X_std_train):
-
-    # TODO Try predicting in one pass with fully convolutional model
-
-    print(f"Predicting on {naip_path}")
-    with rasterio.open(naip_path) as naip:
-
-        X = naip.read()
-        profile = naip.profile
-
-    # Swap shape from (band, height, width) to (width, height, band)
-    X = np.swapaxes(X, 0, 2)
-    X_normalized = get_X_normalized(X, X_mean_train, X_std_train)
-
-    # Predictions have shape (width, height, 1)
-    predictions = np.zeros(X_normalized.shape[:2] + (N_PIXEL_CLASSES,))
-
-    image_shape = tuple(int(x) for x in model.input.shape[1:])
-
-    output_names = get_output_names(model)
-    pixels_output_index = np.where(np.array(output_names) == PIXELS)[0][0]
-
-    for i in range(X.shape[0] // image_shape[0]):
-        for j in range(X.shape[1] // image_shape[1]):
-
-            range0 = range((image_shape[0] * i), (image_shape[0] * (i + 1)))
-            range1 = range((image_shape[1] * j), (image_shape[1] * (j + 1)))
-            indices = np.ix_(range0, range1)
-
-            X_patch = X_normalized[indices]
-            X_patch = X_patch[np.newaxis, :, :, :]
-
-            predictions_patch = model.predict(X_patch)
-            predictions[indices] = predictions_patch[pixels_output_index]
-
-    profile["dtype"] = str(predictions.dtype)
-    profile["count"] = N_PIXEL_CLASSES
-
-    naip_file = os.path.split(naip_path)[1]
-    outpath = os.path.join("predictions", naip_file.replace(".tif", "_predictions.tif"))
-
-    print(f"Saving {outpath}")
-
-    with rasterio.open(outpath, "w", **profile) as outfile:
-
-        for index in range(N_PIXEL_CLASSES):
-
-            # Note: rasterio band indices start with 1, not 0
-            outfile.write(predictions[:, :, index].transpose(), index + 1)
-
-
-def main(image_shape=(256, 256, 4)):
+def main():
 
     config = get_config(MODEL_CONFIG)
 
     cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
 
-    model, X_mean_train, X_std_train = fit_model(
-        config, cdl_label_encoder, cdl_mapping, image_shape
-    )
+    model, X_mean_train, X_std_train = fit_model(config, cdl_label_encoder, cdl_mapping)
 
     # TODO Filename  # TODO Also save X_{mean,std}_train
     model.save("my_model.h5")
@@ -382,7 +293,7 @@ def main(image_shape=(256, 256, 4)):
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
     test_generator = get_generator(
-        test_scenes, cdl_label_encoder, image_shape, batch_size=600
+        test_scenes, cdl_label_encoder, IMAGE_SHAPE, batch_size=600
     )
     test_X, test_y = next(test_generator)
 
@@ -390,7 +301,9 @@ def main(image_shape=(256, 256, 4)):
 
     for test_scene in config["test_scenes"]:
 
-        predict_on_entire_scene(model, test_scene, X_mean_train, X_std_train)
+        predict_pixels_entire_scene(
+            model, test_scene, X_mean_train, X_std_train, IMAGE_SHAPE
+        )
 
 
 if __name__ == "__main__":

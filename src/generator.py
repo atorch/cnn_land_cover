@@ -66,16 +66,12 @@ def get_one_hot_encoded_pixels(image_shape, road_patch, cdl_patch, forest, water
     ] = 1
     pixels[:, :, 3][
         np.where(
-            np.logical_and(
-                cdl_patch[:, :, 0] == water, np.logical_not(pixels[:, :, 1])
-            )
+            np.logical_and(cdl_patch[:, :, 0] == water, np.logical_not(pixels[:, :, 1]))
         )
     ] = 1
 
     # Note: pixels that are not in {roads, forest, water} are coded as other
-    pixels[:, :, 0][
-        np.where(pixels.sum(axis=2) == 0)
-    ] = 1
+    pixels[:, :, 0][np.where(pixels.sum(axis=2) == 0)] = 1
 
     return pixels
 
@@ -91,7 +87,7 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     x_end = x_start + image_shape[0]
     y_end = y_start + image_shape[1]
 
-    naip_patch = naip_values[x_start:x_end, y_start:y_end, 0:image_shape[2]]
+    naip_patch = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
 
     forest = label_encoder.transform(["forest"])[0]
     is_majority_forest = int(
