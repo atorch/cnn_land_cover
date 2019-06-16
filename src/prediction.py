@@ -24,6 +24,7 @@ def predict_pixels_entire_scene(
     # Predictions have shape (width, height, n_classes)
     pixel_predictions = np.zeros(X.shape[:2] + (N_PIXEL_CLASSES,))
 
+    # TODO Predict on rest of scene
     prediction_width = (image_shape[0] // 2) * (X_normalized.shape[0] // image_shape[0])
     prediction_height = (image_shape[1] // 2) * (
         X_normalized.shape[1] // image_shape[1]
@@ -71,10 +72,10 @@ def predict_pixels_entire_scene(
 
     # TODO Colormap  # TODO other, road, forest, water
     colormap = {
-        0: (255, 255, 255, 255),
-        1: (96, 96, 96, 255),
-        2: (0, 102, 0, 255),
-        3: (0, 102, 204, 255),
+        0: (255, 255, 255),
+        1: (96, 96, 96),
+        2: (0, 102, 0),
+        3: (0, 102, 204),
     }
 
     with rasterio.open(outpath, "w", **profile) as outfile:
