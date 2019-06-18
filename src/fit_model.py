@@ -21,6 +21,7 @@ from cnn import (
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
     PIXELS,
+    PIXEL_CLASSES,
     N_PIXEL_CLASSES,
 )
 from generator import get_generator
@@ -257,8 +258,7 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
                 classification_report(
                     y_pred=test_predictions[index].argmax(axis=-1).flatten(),
                     y_true=test_y[name].argmax(axis=-1).flatten(),
-                    # TODO Clean this up!  Needs to be consistent with get_one_hot_encoded_pixels
-                    target_names=["other", "road", "forest", "water"],
+                    target_names=PIXEL_CLASSES,
                 )
             )
 

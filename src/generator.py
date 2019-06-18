@@ -1,7 +1,21 @@
 import numpy as np
 from scipy import stats
 
-from cnn import HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER, PIXELS, N_PIXEL_CLASSES
+from cnn import (
+    HAS_ROADS,
+    IS_MAJORITY_FOREST,
+    MODAL_LAND_COVER,
+    PIXELS,
+    PIXEL_CLASSES,
+    N_PIXEL_CLASSES,
+)
+
+
+# TODO This is essentially a label encoder for PIXEL_CLASSES, just use that
+PIXEL_INDEX = {
+    pixel_class: np.where(np.array(PIXEL_CLASSES) == pixel_class)[0][0]
+    for pixel_class in PIXEL_CLASSES
+}
 
 
 def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
@@ -51,27 +65,38 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
         )
 
 
-def get_one_hot_encoded_pixels(image_shape, road_patch, cdl_patch, forest, water):
+def get_one_hot_encoded_pixels(image_shape, road_patch, cdl_patch, label_encoder):
 
     # TODO One-hot encode pixels such that pixels.sum(axis=2) is 1 everywhere -- put this in a function, clean it up
     pixels = np.zeros(image_shape[:2] + (N_PIXEL_CLASSES,))
 
-    pixels[:, :, 1][np.where(road_patch[:, :, 0])] = 1
-    pixels[:, :, 2][
+    forest = label_encoder.transform(["forest"])[0]
+    corn_soy = label_encoder.transform(["corn_soy"])[0]
+    water = label_encoder.transform(["water"])[0]
+
+    pixels[:, :, PIXEL_INDEX["road"]][np.where(road_patch[:, :, 0])] = 1
+    pixels[:, :, PIXEL_INDEX["forest"]][
         np.where(
             np.logical_and(
                 cdl_patch[:, :, 0] == forest, np.logical_not(pixels[:, :, 1])
             )
         )
     ] = 1
-    pixels[:, :, 3][
+    pixels[:, :, PIXEL_INDEX["corn_soy"]][
+        np.where(
+            np.logical_and(
+                cdl_patch[:, :, 0] == corn_soy, np.logical_not(pixels[:, :, 1])
+            )
+        )
+    ] = 1
+    pixels[:, :, PIXEL_INDEX["water"]][
         np.where(
             np.logical_and(cdl_patch[:, :, 0] == water, np.logical_not(pixels[:, :, 1]))
         )
     ] = 1
 
-    # Note: pixels that are not in {roads, forest, water} are coded as other
-    pixels[:, :, 0][np.where(pixels.sum(axis=2) == 0)] = 1
+    # Note: pixels that are not in {roads, forest, corn_soy, water} are coded as other
+    pixels[:, :, PIXEL_INDEX["other"]][np.where(pixels.sum(axis=2) == 0)] = 1
 
     return pixels
 
@@ -101,10 +126,8 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
 
     modal_land_cover = stats.mode(cdl_patch, axis=None).mode[0]
 
-    water = label_encoder.transform(["water"])[0]
-
     pixels = get_one_hot_encoded_pixels(
-        image_shape, road_patch, cdl_patch, forest, water
+        image_shape, road_patch, cdl_patch, label_encoder
     )
 
     labels = {

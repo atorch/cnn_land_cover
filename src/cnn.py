@@ -21,12 +21,14 @@ PIXELS = "pixels"
 # TODO Clean this up! Needs to be consistent with get_one_hot_encoded_pixels
 N_PIXEL_CLASSES = 4
 
+PIXEL_CLASSES = ["other", "road", "forest", "corn_soy", "water"]
+N_PIXEL_CLASSES = len(PIXEL_CLASSES)
+
+# TODO Tune
+N_BLOCKS = 6
 BASE_N_FILTERS = 16
 ADDITIONAL_FILTERS_PER_BLOCK = 16
-
-N_BLOCKS = 6
-
-DROPOUT_RATE = 0.2
+DROPOUT_RATE = 0.1
 
 
 def add_downsampling_block(input_layer, block_index, downsampling_conv2_layers):

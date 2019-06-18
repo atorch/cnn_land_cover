@@ -40,42 +40,54 @@ with their labels (one label per objective).
 
 # Models
 
-Mini [VGG-ish model](cnn.py) with three objectives:
+Mini [VGG-ish model](cnn.py) with four objectives:
 
 ```
 Classification report for is_majority_forest:
               precision    recall  f1-score   support
 
-           0       0.96      0.98      0.97       402
-           1       0.90      0.84      0.87        98
+           0       0.99      0.98      0.98       506
+           1       0.89      0.93      0.91        94
 
-    accuracy                           0.95       500
-   macro avg       0.93      0.91      0.92       500
-weighted avg       0.95      0.95      0.95       500
+    accuracy                           0.97       600
+   macro avg       0.94      0.95      0.94       600
+weighted avg       0.97      0.97      0.97       600
 
 Classification report for has_roads:
               precision    recall  f1-score   support
 
-           0       0.94      0.95      0.95       338
-           1       0.89      0.88      0.89       162
+           0       0.81      0.93      0.86       269
+           1       0.93      0.82      0.88       331
 
-    accuracy                           0.93       500
-   macro avg       0.92      0.91      0.92       500
-weighted avg       0.93      0.93      0.93       500
+    accuracy                           0.87       600
+   macro avg       0.87      0.88      0.87       600
+weighted avg       0.88      0.87      0.87       600
 
 Classification report for modal_land_cover:
               precision    recall  f1-score   support
 
-    corn_soy       0.78      0.91      0.84       216
-   developed       0.83      0.74      0.78        34
-      forest       0.83      0.88      0.85       103
-       other       0.00      0.00      0.00         0
-     pasture       0.12      0.10      0.11        42
-       water       0.94      0.94      0.94        18
-    wetlands       0.24      0.64      0.35        11
+    corn_soy       0.85      0.74      0.79       191
+   developed       0.85      0.93      0.89       149
+      forest       0.82      0.86      0.84       112
+       other       0.53      0.16      0.25        56
+     pasture       0.23      0.45      0.30        51
+       water       0.90      0.95      0.93        20
+    wetlands       0.71      0.57      0.63        21
 
-   micro avg       0.68      0.80      0.74       424
-   macro avg       0.54      0.60      0.55       424
-weighted avg       0.72      0.80      0.76       424
- samples avg       0.68      0.68      0.68       424
+    accuracy                           0.73       600
+   macro avg       0.70      0.66      0.66       600
+weighted avg       0.76      0.73      0.73       600
+
+Classification report for pixels:
+              precision    recall  f1-score   support
+
+       other       0.72      0.86      0.79  19218490
+        road       0.70      0.04      0.08    875662
+      forest       0.77      0.80      0.78   6566224
+    corn_soy       0.88      0.63      0.73  11372577
+       water       0.86      0.88      0.87   1288647
+
+    accuracy                           0.77  39321600
+   macro avg       0.78      0.64      0.65  39321600
+weighted avg       0.78      0.77      0.76  39321600
 ```
