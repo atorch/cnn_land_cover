@@ -17,7 +17,7 @@ def get_buildings(path):
         geojson = json.load(infile)
 
     buildings = geojson["features"]
-    print(f"Done loading {len(buildings)} buildings from {path}")
+    print(f"done loading {len(buildings)} buildings from {path}")
 
     return buildings
 
@@ -56,11 +56,7 @@ def get_naip_scenes():
     return naip_scenes
 
 
-def main():
-
-    naip_scenes = get_naip_scenes()
-
-    buildings = get_buildings("./buildings/Iowa.geojson")
+def add_buildings_to_naip_scenes(buildings, naip_scenes):
 
     for building in buildings:
 
@@ -74,8 +70,22 @@ def main():
 
             if bbox_lonlat.intersects(building_shape):
 
-                print(f"Found a building intersecting {naip_path}")
                 naip_scenes[naip_path]["buildings"].append(building_shape)
+
+    return
+
+
+def main():
+
+    naip_scenes = get_naip_scenes()
+
+    for state in ["Iowa", "Minnesota"]:
+
+        buildings = get_buildings(f"./buildings/{state}.geojson")
+
+        add_buildings_to_naip_scenes(buildings, naip_scenes)
+
+        print({naip_path: len(value["buildings"]) for naip_path, value in naip_scenes.items()})
 
 
 if __name__ == "__main__":
