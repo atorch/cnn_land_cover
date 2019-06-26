@@ -32,6 +32,8 @@ python src/fit_model.py
 
 [Cropland Data Layer](https://www.nass.usda.gov/Research_and_Science/Cropland/Release/) (land cover raster, visualize it [here](https://nassgeodata.gmu.edu/CropScape/))
 
+[Microsoft building footprints](https://github.com/microsoft/USBuildingFootprints)
+
 [National Agriculture Imagery Program](https://www.fsa.usda.gov/programs-and-services/aerial-photography/imagery-programs/naip-imagery/) (four-band aerial imagery, originally downloaded from [USGS Earth Explorer](https://earthexplorer.usgs.gov/?))
 
 The Cropland Data Layer (CDL) and TIGER road shapefiles are used to programmatically generate
@@ -40,7 +42,7 @@ with their labels (one label per objective).
 
 # Models
 
-Mini [VGG-ish model](cnn.py) with four objectives:
+[Fully convolutional neural network](cnn.py) with four objectives:
 
 ```
 Classification report for is_majority_forest:
