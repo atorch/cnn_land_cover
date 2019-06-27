@@ -1,6 +1,7 @@
 # CNN for Land Cover
 
 ```bash
+./scripts/download_buildings.sh
 ./scripts/download_cdl.sh
 ./scripts/download_county_shapefile.sh
 ```

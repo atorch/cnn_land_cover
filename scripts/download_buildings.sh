@@ -2,4 +2,8 @@
 
 cd ./buildings
 
-wget https://usbuildingdata.blob.core.windows.net/usbuildings-v1-1/Iowa.zip --no-clobber
+for state in Iowa Illinois Minnesota Wisconsin
+do
+    wget https://usbuildingdata.blob.core.windows.net/usbuildings-v1-1/$state.zip --no-clobber
+    unzip -o $state.zip
+done
