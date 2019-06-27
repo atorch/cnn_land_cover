@@ -20,7 +20,6 @@ python src/fit_model.py
 * [ ] Download script for the NAIP scenes in [model_config.yml](config/model_config.yml)
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
-* [ ] More objectives: buildings, semantic segmentation...
 * [ ] GPU
 * [ ] Test set confusion matrices
 * [ ] Tensorboard
@@ -94,3 +93,7 @@ Classification report for pixels:
    macro avg       0.78      0.64      0.65  39321600
 weighted avg       0.78      0.77      0.76  39321600
 ```
+
+# Visualization
+
+TODO Visualizations of predictions on test scenes

@@ -1,10 +1,12 @@
 from functools import partial
+import fiona
+from fiona.crs import from_epsg
 import glob
 import json
 import os
 import pyproj
 import rasterio
-from shapely.geometry import Polygon, shape
+from shapely.geometry import mapping, Polygon, shape
 from shapely.ops import transform
 
 from annotate_naip_scenes import NAIP_DIR
@@ -63,7 +65,7 @@ def add_buildings_to_naip_scenes(buildings, naip_scenes):
         building_shape = shape(building["geometry"])
 
         # Note: a single building can intersect multiple NAIP scenes
-        # TODO Only need to loop over naip scenes in the same state!
+        # TODO Only need to loop over naip scenes that intersect the state!
         for naip_path in naip_scenes.keys():
 
             bbox_lonlat = naip_scenes[naip_path]["bbox_lonlat"]
@@ -75,17 +77,42 @@ def add_buildings_to_naip_scenes(buildings, naip_scenes):
     return
 
 
+def save_building_shapefiles(naip_scenes):
+
+    schema = {"geometry": "Polygon",
+              "properties": {}}
+
+    for naip_path, scene_attributes in naip_scenes.items():
+
+        buildings = scene_attributes["buildings"]
+
+        naip_file = os.path.split(naip_path)[1]
+        outpath = os.path.join("./building_annotations", naip_file.replace(".tif", ".shp"))
+        print(f"writing {outpath}")
+
+        with fiona.open(outpath, 'w', driver='ESRI Shapefile', crs=from_epsg(4326), schema=schema) as outfile:
+
+            for building in buildings:
+
+                building_json = {"geometry": mapping(building), "properties": {}}
+
+                outfile.write(building_json)
+
+
 def main():
 
     naip_scenes = get_naip_scenes()
 
-    for state in ["Iowa", "Minnesota"]:
+    # TODO List of states should be based on NAIP scene footprints
+    for state in ["Illinois", "Iowa", "Minnesota", "Wisconsin"]:
 
         buildings = get_buildings(f"./buildings/{state}.geojson")
-
         add_buildings_to_naip_scenes(buildings, naip_scenes)
 
-        print({naip_path: len(value["buildings"]) for naip_path, value in naip_scenes.items()})
+        n_buildings = sum([len(value["buildings"]) for value in naip_scenes.values()])
+        print(f" running total of number of buildings intersecting naip scenes: {n_buildings}")
+
+    save_building_shapefiles(naip_scenes)
 
 
 if __name__ == "__main__":
