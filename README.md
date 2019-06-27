@@ -42,7 +42,7 @@ with their labels (one label per objective).
 
 # Models
 
-[Fully convolutional neural network](cnn.py) with four objectives:
+[Fully convolutional neural network](src/cnn.py) with four objectives:
 
 ```
 Classification report for is_majority_forest:
