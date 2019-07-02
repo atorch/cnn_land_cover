@@ -9,7 +9,7 @@ import rasterio
 from shapely.geometry import mapping, Polygon, shape
 from shapely.ops import transform
 
-from annotate_naip_scenes import NAIP_DIR
+from constants import BUILDING_ANNOTATION_DIR, NAIP_DIR
 
 
 def get_buildings(path):
@@ -79,18 +79,21 @@ def add_buildings_to_naip_scenes(buildings, naip_scenes):
 
 def save_building_shapefiles(naip_scenes):
 
-    schema = {"geometry": "Polygon",
-              "properties": {}}
+    schema = {"geometry": "Polygon", "properties": {}}
 
     for naip_path, scene_attributes in naip_scenes.items():
 
         buildings = scene_attributes["buildings"]
 
         naip_file = os.path.split(naip_path)[1]
-        outpath = os.path.join("./building_annotations", naip_file.replace(".tif", ".shp"))
+        outpath = os.path.join(
+            BUILDING_ANNOTATION_DIR, naip_file.replace(".tif", ".shp")
+        )
         print(f"writing {outpath}")
 
-        with fiona.open(outpath, 'w', driver='ESRI Shapefile', crs=from_epsg(4326), schema=schema) as outfile:
+        with fiona.open(
+            outpath, "w", driver="ESRI Shapefile", crs=from_epsg(4326), schema=schema
+        ) as outfile:
 
             for building in buildings:
 
@@ -110,7 +113,9 @@ def main():
         add_buildings_to_naip_scenes(buildings, naip_scenes)
 
         n_buildings = sum([len(value["buildings"]) for value in naip_scenes.values()])
-        print(f" running total of number of buildings intersecting naip scenes: {n_buildings}")
+        print(
+            f" running total of number of buildings intersecting naip scenes: {n_buildings}"
+        )
 
     save_building_shapefiles(naip_scenes)
 

@@ -13,6 +13,7 @@ from keras.layers import (
     concatenate,
 )
 
+HAS_BUILDINGS = "has_buildings"
 HAS_ROADS = "has_roads"
 IS_MAJORITY_FOREST = "is_majority_forest"
 MODAL_LAND_COVER = "modal_land_cover"
@@ -26,9 +27,9 @@ N_PIXEL_CLASSES = len(PIXEL_CLASSES)
 
 # TODO Tune
 N_BLOCKS = 6
-BASE_N_FILTERS = 16
+BASE_N_FILTERS = 32
 ADDITIONAL_FILTERS_PER_BLOCK = 16
-DROPOUT_RATE = 0.1
+DROPOUT_RATE = 0.15
 
 
 def add_downsampling_block(input_layer, block_index, downsampling_conv2_layers):
@@ -85,6 +86,7 @@ def get_keras_model(image_shape, n_land_cover_classes):
 
     maxpool = GlobalAveragePooling2D()(current_last_layer)
 
+    output_buildings = Dense(1, activation="sigmoid", name=HAS_BUILDINGS)(maxpool)
     output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(maxpool)
     output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(maxpool)
     output_land_cover = Dense(
@@ -103,7 +105,13 @@ def get_keras_model(image_shape, n_land_cover_classes):
 
     model = Model(
         inputs=input_layer,
-        outputs=[output_forest, output_roads, output_land_cover, output_pixels],
+        outputs=[
+            output_buildings,
+            output_forest,
+            output_roads,
+            output_land_cover,
+            output_pixels,
+        ],
     )
 
     print(model.summary())
@@ -113,6 +121,7 @@ def get_keras_model(image_shape, n_land_cover_classes):
     model.compile(
         optimizer=nadam,
         loss={
+            HAS_BUILDINGS: keras.losses.binary_crossentropy,
             HAS_ROADS: keras.losses.binary_crossentropy,
             IS_MAJORITY_FOREST: keras.losses.binary_crossentropy,
             MODAL_LAND_COVER: keras.losses.categorical_crossentropy,

@@ -13,23 +13,16 @@ from rasterio.windows import Window
 from shapely.geometry import Polygon, shape
 from shapely.ops import transform
 
-
-NAIP_DIR = "./naip"
-
-CDL_ANNOTATION_DIR = "./cdl_annotations"
-# TODO Make sure CDL year matches NAIP year
-CDL_FILE = "2017_30m_cdls.img"
-CDL_DIR = "./cdl"
-
-COUNTY_DIR = "./county"
-COUNTY_FILE = "tl_2017_us_county.shp"
-
-ROAD_ANNOTATION_DIR = "./road_annotations"
-ROAD_DIR = "./roads"
-ROAD_FORMAT = "tl_2017_{county}_roads.shp"
-
-# Note: buffering is applied after projecting road shapes into NAIP's CRS
-ROAD_BUFFER_METERS = 2.0
+from constants import (
+    BUILDING_ANNOTATION_DIR,
+    COUNTY_DIR,
+    CDL_ANNOTATION_DIR,
+    CDL_DIR,
+    CDL_FILE,
+    COUNTY_FILE,
+    NAIP_DIR,
+    ROAD_ANNOTATION_DIR,
+)
 
 
 def get_y_x_at_pixel_centers(raster):
@@ -135,6 +128,58 @@ def save_cdl_annotation_for_naip_raster(cdl, naip_file, naip):
         output.write(cdl_values.astype(profile["dtype"]), 1)
 
 
+def save_building_annotation_for_naip_raster(naip_file, naip):
+
+    output_path = os.path.join(BUILDING_ANNOTATION_DIR, naip_file)
+
+    if os.path.exists(output_path):
+        print(f"{output_path} already exists, skipping")
+        return
+
+    building_file = naip_file.replace(".tif", ".shp")
+    building_path = os.path.join(BUILDING_ANNOTATION_DIR, building_file)
+    building_shp = fiona.open(building_path)
+
+    building_geometries = []
+
+    # Note: we project from the building shapefile's CRS to the NAIP raster's CRS
+    projection_fn = partial(
+        pyproj.transform, pyproj.Proj(building_shp.crs), pyproj.Proj(naip.crs)
+    )
+
+    for building in building_shp:
+
+        building_geometry = shape(building["geometry"])
+
+        building_geometry_transformed = transform(projection_fn, building_geometry)
+
+        building_geometries.append(building_geometry_transformed)
+
+    if building_geometries:
+        building_values = rasterize(
+            building_geometries,
+            out_shape=(naip.meta["height"], naip.meta["width"]),
+            transform=naip.transform,
+            all_touched=True,
+            dtype="uint8",
+        )
+    else:
+        building_values = np.zeros(
+            (naip.meta["height"], naip.meta["width"]), dtype="uint8"
+        )
+
+    profile = naip.profile.copy()
+
+    # Note: the output has the same width, height, and transform as the NAIP raster,
+    # but contains a single band of building indicators (whereas the NAIP raster contains 4 bands)
+    profile["dtype"] = "uint8"
+    profile["count"] = 1
+
+    print(f"writing {output_path}")
+    with rasterio.open(output_path, "w", **profile) as output:
+        output.write(building_values.astype(profile["dtype"]), 1)
+
+
 def save_road_annotation_for_naip_raster(counties, naip_file, naip):
 
     # Note: the road annotation for a given naip_file has the same file name,
@@ -184,7 +229,7 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
     profile = naip.profile.copy()
 
     # Note: the output has the same width, height, and transform as the NAIP raster,
-    # but contains a single band of ROAD codes (whereas the NAIP raster contains 4 bands)
+    # but contains a single band of road indicators (whereas the NAIP raster contains 4 bands)
     profile["dtype"] = "uint8"
     profile["count"] = 1
 
@@ -252,9 +297,9 @@ def save_naip_annotations(naip_path):
     counties = get_counties(naip)
     print(f"counties: {', '.join(counties)}")
 
-    save_road_annotation_for_naip_raster(counties, naip_file, naip)
-
+    save_building_annotation_for_naip_raster(naip_file, naip)
     save_cdl_annotation_for_naip_raster(cdl, naip_file, naip)
+    save_road_annotation_for_naip_raster(counties, naip_file, naip)
 
 
 def main():

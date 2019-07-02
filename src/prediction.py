@@ -70,12 +70,13 @@ def predict_pixels_entire_scene(
 
     print(f"Saving {outpath}")
 
+    # TODO Use PIXEL_CLASSES
     colormap = {
         0: (255, 255, 255),
         1: (96, 96, 96),
         2: (0, 102, 0),
-        3: (230, 180, 30),
-        4: (0, 102, 204),
+        3: (230, 180, 30),  # Gold?
+        4: (0, 102, 204),  # Blue?
     }
 
     with rasterio.open(outpath, "w", **profile) as outfile:

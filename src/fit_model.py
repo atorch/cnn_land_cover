@@ -13,7 +13,6 @@ from shapely.geometry import Polygon
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 
-from annotate_naip_scenes import CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
 from cnn import (
     get_keras_model,
     get_output_names,
@@ -24,11 +23,14 @@ from cnn import (
     PIXEL_CLASSES,
     N_PIXEL_CLASSES,
 )
+from constants import BUILDING_ANNOTATION_DIR, CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
 from generator import get_generator
 from normalization import get_X_mean_and_std, get_X_normalized, normalize_scenes
 from prediction import predict_pixels_entire_scene
 
 
+# Note: this is the image shape used when training
+# The image shape during prediction can differ since the model is fully convolutional
 IMAGE_SHAPE = (256, 256, 4)
 
 
@@ -81,11 +83,11 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
             X = naip.read()
 
         naip_file = os.path.split(naip_path)[1]
+
         cdl_annotation_path = os.path.join(CDL_ANNOTATION_DIR, naip_file)
+        with rasterio.open(cdl_annotation_path) as cdl_annotation:
 
-        with rasterio.open(cdl_annotation_path) as naip_cdl:
-
-            y_cdl = naip_cdl.read()
+            y_cdl = cdl_annotation.read()
 
         # Note: shapes are (band, height, width)
         assert X.shape[1:] == y_cdl.shape[1:]
@@ -93,10 +95,13 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
         y_cdl_recoded = recode_cdl_values(y_cdl, cdl_mapping, cdl_label_encoder)
 
         road_annotation_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
+        with rasterio.open(road_annotation_path) as road_annotation:
 
-        with rasterio.open(road_annotation_path) as naip_road:
+            y_road = road_annotation.read()
 
-            y_road = naip_road.read()
+        building_annotation_path = os.path.join(BUILDING_ANNOTATION_DIR, naip_file)
+        with rasterio.open(building_annotation_path) as building_annotation:
+            y_building = building_annotation.read()
 
         # Note: swap NAIP and CDL shape from (band, height, width) to (width, height, band)
         annotated_scenes.append(
@@ -104,6 +109,7 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
                 np.swapaxes(X, 0, 2),
                 np.swapaxes(y_cdl_recoded, 0, 2),
                 np.swapaxes(y_road, 0, 2),
+                np.swapaxes(y_building, 0, 2),
             ]
         )
 

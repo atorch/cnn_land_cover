@@ -2,6 +2,7 @@ import numpy as np
 from scipy import stats
 
 from cnn import (
+    HAS_BUILDINGS,
     HAS_ROADS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
@@ -28,6 +29,7 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
         batch_X = np.empty((batch_size,) + image_shape)
         batch_forest = np.empty((batch_size, 1), dtype=int)
+        batch_has_buildings = np.empty((batch_size, 1), dtype=int)
         batch_has_roads = np.empty((batch_size, 1), dtype=int)
         batch_pixels = np.empty(
             (batch_size,) + image_shape[:2] + (N_PIXEL_CLASSES,), dtype=int
@@ -46,6 +48,7 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
             )
 
             batch_forest[batch_index] = labels[IS_MAJORITY_FOREST]
+            batch_has_buildings[batch_index] = labels[HAS_BUILDINGS]
             batch_has_roads[batch_index] = labels[HAS_ROADS]
             batch_pixels[batch_index] = labels[PIXELS]
 
@@ -57,6 +60,7 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
         yield (
             batch_X,
             {
+                HAS_BUILDINGS: batch_has_buildings,
                 HAS_ROADS: batch_has_roads,
                 IS_MAJORITY_FOREST: batch_forest,
                 MODAL_LAND_COVER: batch_land_cover,
@@ -103,7 +107,7 @@ def get_one_hot_encoded_pixels(image_shape, road_patch, cdl_patch, label_encoder
 
 def get_random_patch(annotated_scene, image_shape, label_encoder):
 
-    naip_values, cdl_values, road_values = annotated_scene
+    naip_values, cdl_values, road_values, building_values = annotated_scene
 
     # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
     x_start = np.random.choice(range(naip_values.shape[0] - image_shape[0]))
@@ -122,8 +126,10 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     road_patch = road_values[x_start:x_end, y_start:y_end]
     has_roads = int(np.mean(road_patch) > 0.001)
 
-    cdl_patch = cdl_values[x_start:x_end, y_start:y_end]
+    building_patch = building_values[x_start:x_end, y_start:y_end]
+    has_buildings = int(np.mean(building_patch) > 0.0001)
 
+    cdl_patch = cdl_values[x_start:x_end, y_start:y_end]
     modal_land_cover = stats.mode(cdl_patch, axis=None).mode[0]
 
     pixels = get_one_hot_encoded_pixels(
@@ -131,6 +137,7 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     )
 
     labels = {
+        HAS_BUILDINGS: has_buildings,
         HAS_ROADS: has_roads,
         IS_MAJORITY_FOREST: is_majority_forest,
         MODAL_LAND_COVER: modal_land_cover,
