@@ -16,6 +16,7 @@ from sklearn.preprocessing import LabelEncoder
 from cnn import (
     get_keras_model,
     get_output_names,
+    HAS_BUILDINGS,
     HAS_ROADS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
@@ -23,7 +24,12 @@ from cnn import (
     PIXEL_CLASSES,
     N_PIXEL_CLASSES,
 )
-from constants import BUILDING_ANNOTATION_DIR, CDL_ANNOTATION_DIR, NAIP_DIR, ROAD_ANNOTATION_DIR
+from constants import (
+    BUILDING_ANNOTATION_DIR,
+    CDL_ANNOTATION_DIR,
+    NAIP_DIR,
+    ROAD_ANNOTATION_DIR,
+)
 from generator import get_generator
 from normalization import get_X_mean_and_std, get_X_normalized, normalize_scenes
 from prediction import predict_pixels_entire_scene
@@ -141,7 +147,7 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
 
         labels = {MODAL_LAND_COVER: land_cover}
 
-        for objective in [HAS_ROADS, IS_MAJORITY_FOREST]:
+        for objective in [HAS_BUILDINGS, HAS_ROADS, IS_MAJORITY_FOREST]:
             labels[objective] = int(sample_batch[1][objective][image_index][0])
 
         outpath = outpath.replace(".png", ".txt")

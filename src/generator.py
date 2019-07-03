@@ -69,37 +69,50 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
         )
 
 
-def get_one_hot_encoded_pixels(image_shape, road_patch, cdl_patch, label_encoder):
+def get_one_hot_encoded_pixels(
+    image_shape, road_patch, building_patch, cdl_patch, label_encoder
+):
 
-    # TODO One-hot encode pixels such that pixels.sum(axis=2) is 1 everywhere -- put this in a function, clean it up
+    # TODO Test this function!
+    # TODO Could apply this to the entire annotated rasters ahead of time, instead of individual image patches on the fly
+
     pixels = np.zeros(image_shape[:2] + (N_PIXEL_CLASSES,))
+
+    # Note: the road dataset is presumably the most accurate (closest to ground truth), burn it in first
+    pixels[:, :, PIXEL_INDEX["road"]][np.where(road_patch[:, :, 0])] = 1
+
+    # Note: next we burn in the building dataset in places that aren't already coded as roads
+    pixels[:, :, PIXEL_INDEX["building"]][
+        np.where(
+            np.logical_and(
+                building_patch[:, :, 0],
+                np.logical_not(pixels[:, :, PIXEL_INDEX["road"]]),
+            )
+        )
+    ] = 1
+
+    # Note: next, burn in CDL codes in pixels that aren't already coded as road or building
+    not_road_or_building = np.logical_not(
+        np.logical_or(
+            pixels[:, :, PIXEL_INDEX["road"]], pixels[:, :, PIXEL_INDEX["building"]]
+        )
+    )
 
     forest = label_encoder.transform(["forest"])[0]
     corn_soy = label_encoder.transform(["corn_soy"])[0]
     water = label_encoder.transform(["water"])[0]
 
-    pixels[:, :, PIXEL_INDEX["road"]][np.where(road_patch[:, :, 0])] = 1
     pixels[:, :, PIXEL_INDEX["forest"]][
-        np.where(
-            np.logical_and(
-                cdl_patch[:, :, 0] == forest, np.logical_not(pixels[:, :, 1])
-            )
-        )
+        np.where(np.logical_and(cdl_patch[:, :, 0] == forest, not_road_or_building))
     ] = 1
     pixels[:, :, PIXEL_INDEX["corn_soy"]][
-        np.where(
-            np.logical_and(
-                cdl_patch[:, :, 0] == corn_soy, np.logical_not(pixels[:, :, 1])
-            )
-        )
+        np.where(np.logical_and(cdl_patch[:, :, 0] == corn_soy, not_road_or_building))
     ] = 1
     pixels[:, :, PIXEL_INDEX["water"]][
-        np.where(
-            np.logical_and(cdl_patch[:, :, 0] == water, np.logical_not(pixels[:, :, 1]))
-        )
+        np.where(np.logical_and(cdl_patch[:, :, 0] == water, not_road_or_building))
     ] = 1
 
-    # Note: pixels that are not in {roads, forest, corn_soy, water} are coded as other
+    # Note: pixels that are not coded by the logic above are coded as other
     pixels[:, :, PIXEL_INDEX["other"]][np.where(pixels.sum(axis=2) == 0)] = 1
 
     return pixels
@@ -133,7 +146,7 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     modal_land_cover = stats.mode(cdl_patch, axis=None).mode[0]
 
     pixels = get_one_hot_encoded_pixels(
-        image_shape, road_patch, cdl_patch, label_encoder
+        image_shape, road_patch, building_patch, cdl_patch, label_encoder
     )
 
     labels = {

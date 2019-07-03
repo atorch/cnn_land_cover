@@ -20,9 +20,7 @@ MODAL_LAND_COVER = "modal_land_cover"
 PIXELS = "pixels"
 
 # TODO Clean this up! Needs to be consistent with get_one_hot_encoded_pixels
-N_PIXEL_CLASSES = 4
-
-PIXEL_CLASSES = ["other", "road", "forest", "corn_soy", "water"]
+PIXEL_CLASSES = ["other", "road", "building", "forest", "corn_soy", "water"]
 N_PIXEL_CLASSES = len(PIXEL_CLASSES)
 
 # TODO Tune
