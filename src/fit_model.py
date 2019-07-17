@@ -21,30 +21,22 @@ from cnn import (
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
     PIXELS,
-    PIXEL_CLASSES,
-    N_PIXEL_CLASSES,
 )
 from constants import (
     BUILDING_ANNOTATION_DIR,
     CDL_ANNOTATION_DIR,
+    CDL_CLASS_BUILDING,
+    CDL_CLASS_ROAD,
+    CDL_CLASS_OTHER,
+    CDL_MAPPING_FILE,
+    IMAGE_SHAPE,
+    MODEL_CONFIG,
     NAIP_DIR,
     ROAD_ANNOTATION_DIR,
 )
 from generator import get_generator
 from normalization import get_X_mean_and_std, get_X_normalized, normalize_scenes
 from prediction import predict_pixels_entire_scene
-
-
-# Note: this is the image shape used when training
-# The image shape during prediction can differ since the model is fully convolutional
-IMAGE_SHAPE = (256, 256, 4)
-
-
-# Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
-CDL_MAPPING_FILE = "./config/cdl_classes.yml"
-CDL_CLASS_OTHER = "other"
-
-MODEL_CONFIG = "./config/model_config.yml"
 
 
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
@@ -62,22 +54,45 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
     return cdl_recoded
 
 
-def get_cdl_label_encoder_and_mapping():
+def get_label_encoder_and_mapping():
 
     with open(CDL_MAPPING_FILE, "r") as infile:
 
         cdl_mapping = yaml.safe_load(infile)
 
-    cdl_label_encoder = LabelEncoder()
+    label_encoder = LabelEncoder()
 
     # TODO Buggy if not all cdl_classes are present in the training set?
-    cdl_classes = list(cdl_mapping.keys()) + [CDL_CLASS_OTHER]
-    cdl_label_encoder.fit(cdl_classes)
+    cdl_classes = list(cdl_mapping.keys()) + [
+        CDL_CLASS_BUILDING,
+        CDL_CLASS_ROAD,
+        CDL_CLASS_OTHER,
+    ]
+    label_encoder.fit(cdl_classes)
 
-    return cdl_label_encoder, cdl_mapping
+    return label_encoder, cdl_mapping
 
 
-def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
+def get_y_combined(y_cdl_recoded, y_road, y_building, label_encoder):
+
+    ## This function "burns" roads and buildings into the recoded CDL raster
+    ## The road and building datasets appear to be more reliable than the CDL,
+    ## and they are higher resolution, so roads and buildings take precedence over CDL codes
+
+    # TODO Make sure y_cdl_recoded, y_road and y_building get garbage collected!
+    # TODO Make sure y_combined is uint8
+    y_combined = y_cdl_recoded.copy()
+
+    road = label_encoder.transform([CDL_CLASS_ROAD])[0]
+    y_combined[np.where(y_road)] = road
+
+    building = label_encoder.transform([CDL_CLASS_BUILDING])[0]
+    y_combined[np.where(y_building)] = building
+
+    return y_combined
+
+
+def get_annotated_scenes(naip_paths, label_encoder, cdl_mapping):
 
     annotated_scenes = []
 
@@ -98,7 +113,7 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
         # Note: shapes are (band, height, width)
         assert X.shape[1:] == y_cdl.shape[1:]
 
-        y_cdl_recoded = recode_cdl_values(y_cdl, cdl_mapping, cdl_label_encoder)
+        y_cdl_recoded = recode_cdl_values(y_cdl, cdl_mapping, label_encoder)
 
         road_annotation_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
         with rasterio.open(road_annotation_path) as road_annotation:
@@ -109,15 +124,10 @@ def get_annotated_scenes(naip_paths, cdl_label_encoder, cdl_mapping):
         with rasterio.open(building_annotation_path) as building_annotation:
             y_building = building_annotation.read()
 
+        y_combined = get_y_combined(y_cdl_recoded, y_road, y_building, label_encoder)
+
         # Note: swap NAIP and CDL shape from (band, height, width) to (width, height, band)
-        annotated_scenes.append(
-            [
-                np.swapaxes(X, 0, 2),
-                np.swapaxes(y_cdl_recoded, 0, 2),
-                np.swapaxes(y_road, 0, 2),
-                np.swapaxes(y_building, 0, 2),
-            ]
-        )
+        annotated_scenes.append([np.swapaxes(X, 0, 2), np.swapaxes(y_combined, 0, 2)])
 
     return annotated_scenes
 
@@ -155,10 +165,10 @@ def save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder):
             outfile.write(json.dumps(labels))
 
 
-def fit_model(config, cdl_label_encoder, cdl_mapping):
+def fit_model(config, label_encoder, cdl_mapping):
 
     training_scenes = get_annotated_scenes(
-        config["training_scenes"], cdl_label_encoder, cdl_mapping
+        config["training_scenes"], label_encoder, cdl_mapping
     )
 
     unique_training_images = sum(
@@ -172,7 +182,7 @@ def fit_model(config, cdl_label_encoder, cdl_mapping):
     )
 
     validation_scenes = get_annotated_scenes(
-        config["validation_scenes"], cdl_label_encoder, cdl_mapping
+        config["validation_scenes"], label_encoder, cdl_mapping
     )
 
     X_mean_train, X_std_train = get_X_mean_and_std(training_scenes)
@@ -183,11 +193,11 @@ def fit_model(config, cdl_label_encoder, cdl_mapping):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(IMAGE_SHAPE, len(cdl_label_encoder.classes_))
+    model = get_keras_model(IMAGE_SHAPE, len(label_encoder.classes_))
 
     # plot_model(model, to_file='model.png')
 
-    training_generator = get_generator(training_scenes, cdl_label_encoder, IMAGE_SHAPE)
+    training_generator = get_generator(training_scenes, label_encoder, IMAGE_SHAPE)
 
     sample_batch = next(training_generator)
 
@@ -196,11 +206,9 @@ def fit_model(config, cdl_label_encoder, cdl_mapping):
 
     print(f"Shape of sample batch X: {sample_batch[0][0].shape}")
 
-    save_sample_images(sample_batch, X_mean_train, X_std_train, cdl_label_encoder)
+    save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder)
 
-    validation_generator = get_generator(
-        validation_scenes, cdl_label_encoder, IMAGE_SHAPE
-    )
+    validation_generator = get_generator(validation_scenes, label_encoder, IMAGE_SHAPE)
 
     # TODO Tensorboard
     history = model.fit_generator(
@@ -244,7 +252,7 @@ def get_config(model_config):
     return config
 
 
-def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
+def print_classification_reports(test_X, test_y, model, label_encoder):
 
     test_predictions = model.predict(test_X)
 
@@ -259,8 +267,8 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
                 classification_report(
                     y_pred=test_predictions[index].argmax(axis=-1),
                     y_true=test_y[name].argmax(axis=-1),
-                    target_names=cdl_label_encoder.classes_,
-                    labels=range(len(cdl_label_encoder.classes_)),
+                    target_names=label_encoder.classes_,
+                    labels=range(len(label_encoder.classes_)),
                 )
             )
 
@@ -270,7 +278,7 @@ def print_classification_reports(test_X, test_y, model, cdl_label_encoder):
                 classification_report(
                     y_pred=test_predictions[index].argmax(axis=-1).flatten(),
                     y_true=test_y[name].argmax(axis=-1).flatten(),
-                    target_names=PIXEL_CLASSES,
+                    target_names=label_encoder.classes_,
                 )
             )
 
@@ -292,29 +300,29 @@ def main():
 
     config = get_config(MODEL_CONFIG)
 
-    cdl_label_encoder, cdl_mapping = get_cdl_label_encoder_and_mapping()
+    label_encoder, cdl_mapping = get_label_encoder_and_mapping()
 
-    model, X_mean_train, X_std_train = fit_model(config, cdl_label_encoder, cdl_mapping)
+    model, X_mean_train, X_std_train = fit_model(config, label_encoder, cdl_mapping)
 
     # TODO Filename  # TODO Also save X_{mean,std}_train
     model.save("my_model.h5")
 
     test_scenes = get_annotated_scenes(
-        config["test_scenes"], cdl_label_encoder, cdl_mapping
+        config["test_scenes"], label_encoder, cdl_mapping
     )
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
     test_generator = get_generator(
-        test_scenes, cdl_label_encoder, IMAGE_SHAPE, batch_size=600
+        test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
     )
     test_X, test_y = next(test_generator)
 
-    print_classification_reports(test_X, test_y, model, cdl_label_encoder)
+    print_classification_reports(test_X, test_y, model, label_encoder)
 
     for test_scene in config["test_scenes"]:
 
         predict_pixels_entire_scene(
-            model, test_scene, X_mean_train, X_std_train, IMAGE_SHAPE
+            model, test_scene, X_mean_train, X_std_train, IMAGE_SHAPE, label_encoder
         )
 
 

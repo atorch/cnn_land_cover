@@ -3,12 +3,12 @@ import os
 import numpy as np
 import rasterio
 
-from cnn import N_PIXEL_CLASSES, PIXELS, get_output_names
+from cnn import PIXELS, get_output_names
 from normalization import get_X_normalized
 
 
 def predict_pixels_entire_scene(
-    model, naip_path, X_mean_train, X_std_train, image_shape
+    model, naip_path, X_mean_train, X_std_train, image_shape, label_encoder
 ):
 
     print(f"Predicting on {naip_path}")
@@ -22,7 +22,8 @@ def predict_pixels_entire_scene(
     X_normalized = get_X_normalized(X, X_mean_train, X_std_train)
 
     # Predictions have shape (width, height, n_classes)
-    pixel_predictions = np.zeros(X.shape[:2] + (N_PIXEL_CLASSES,))
+    n_pixel_classes = len(label_encoder.classes_)
+    pixel_predictions = np.zeros(X.shape[:2] + (n_pixel_classes,))
 
     # TODO Predict on rest of scene
     prediction_width = (image_shape[0] // 2) * (X_normalized.shape[0] // image_shape[0])
@@ -44,7 +45,7 @@ def predict_pixels_entire_scene(
     ][0]
 
     profile["dtype"] = str(pixel_predictions.dtype)
-    profile["count"] = N_PIXEL_CLASSES
+    profile["count"] = n_pixel_classes
 
     naip_file = os.path.split(naip_path)[1]
     outpath = os.path.join("predictions", naip_file.replace(".tif", "_predictions.tif"))
@@ -53,7 +54,7 @@ def predict_pixels_entire_scene(
 
     with rasterio.open(outpath, "w", **profile) as outfile:
 
-        for index in range(N_PIXEL_CLASSES):
+        for index in range(n_pixel_classes):
 
             # Note: rasterio band indices start with 1, not 0
             outfile.write(pixel_predictions[:, :, index].transpose(), index + 1)
@@ -70,7 +71,7 @@ def predict_pixels_entire_scene(
 
     print(f"Saving {outpath}")
 
-    # TODO Use PIXEL_CLASSES
+    # TODO Use PIXEL_CLASSES  # TODO Buildings
     colormap = {
         0: (255, 255, 255),
         1: (96, 96, 96),

@@ -13,15 +13,14 @@ from keras.layers import (
     concatenate,
 )
 
-HAS_BUILDINGS = "has_buildings"
-HAS_ROADS = "has_roads"
-IS_MAJORITY_FOREST = "is_majority_forest"
-MODAL_LAND_COVER = "modal_land_cover"
-PIXELS = "pixels"
+from constants import (
+    HAS_BUILDINGS,
+    HAS_ROADS,
+    PIXELS,
+    IS_MAJORITY_FOREST,
+    MODAL_LAND_COVER,
+)
 
-# TODO Clean this up! Needs to be consistent with get_one_hot_encoded_pixels
-PIXEL_CLASSES = ["other", "road", "building", "forest", "corn_soy", "water"]
-N_PIXEL_CLASSES = len(PIXEL_CLASSES)
 
 # TODO Tune
 N_BLOCKS = 6
@@ -67,7 +66,7 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
     return BatchNormalization()(conv2)
 
 
-def get_keras_model(image_shape, n_land_cover_classes):
+def get_keras_model(image_shape, n_classes):
 
     # Note: model is fully convolutional, so image width and height can be arbitrary
     input_layer = Input(shape=(None, None, image_shape[2]))
@@ -87,9 +86,9 @@ def get_keras_model(image_shape, n_land_cover_classes):
     output_buildings = Dense(1, activation="sigmoid", name=HAS_BUILDINGS)(maxpool)
     output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(maxpool)
     output_roads = Dense(1, activation="sigmoid", name=HAS_ROADS)(maxpool)
-    output_land_cover = Dense(
-        n_land_cover_classes, activation="softmax", name=MODAL_LAND_COVER
-    )(maxpool)
+    output_land_cover = Dense(n_classes, activation="softmax", name=MODAL_LAND_COVER)(
+        maxpool
+    )
 
     for index in range(N_BLOCKS - 1, 0, -1):
 
@@ -97,7 +96,7 @@ def get_keras_model(image_shape, n_land_cover_classes):
             current_last_layer, index, downsampling_conv2_layers
         )
 
-    output_pixels = Conv2D(N_PIXEL_CLASSES, 1, activation="softmax", name=PIXELS)(
+    output_pixels = Conv2D(n_classes, 1, activation="softmax", name=PIXELS)(
         current_last_layer
     )
 

@@ -1,22 +1,18 @@
 import numpy as np
+from keras.utils.np_utils import to_categorical
 from scipy import stats
 
-from cnn import (
+from cnn import HAS_BUILDINGS, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER, PIXELS
+
+from constants import (
+    CDL_CLASS_BUILDING,
+    CDL_CLASS_ROAD,
     HAS_BUILDINGS,
     HAS_ROADS,
+    PIXELS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
-    PIXELS,
-    PIXEL_CLASSES,
-    N_PIXEL_CLASSES,
 )
-
-
-# TODO This is essentially a label encoder for PIXEL_CLASSES, just use that
-PIXEL_INDEX = {
-    pixel_class: np.where(np.array(PIXEL_CLASSES) == pixel_class)[0][0]
-    for pixel_class in PIXEL_CLASSES
-}
 
 
 def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
@@ -25,6 +21,8 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
     # Try distribution with a higher probability of seeing entire NAIP scene (uniform will overlap)
     # TODO Augmentation (flips)? Worth the extra computation?
 
+    n_pixel_classes = len(label_encoder.classes_)
+
     while True:
 
         batch_X = np.empty((batch_size,) + image_shape)
@@ -32,7 +30,7 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
         batch_has_buildings = np.empty((batch_size, 1), dtype=int)
         batch_has_roads = np.empty((batch_size, 1), dtype=int)
         batch_pixels = np.empty(
-            (batch_size,) + image_shape[:2] + (N_PIXEL_CLASSES,), dtype=int
+            (batch_size,) + image_shape[:2] + (n_pixel_classes,), dtype=int
         )
         batch_land_cover = np.zeros(
             (batch_size, len(label_encoder.classes_)), dtype=int
@@ -69,58 +67,14 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
         )
 
 
-def get_one_hot_encoded_pixels(
-    image_shape, road_patch, building_patch, cdl_patch, label_encoder
-):
+def get_one_hot_encoded_pixels(image_shape, y_patch, label_encoder):
 
-    # TODO Test this function!
-    # TODO Could apply this to the entire annotated rasters ahead of time, instead of individual image patches on the fly
-
-    pixels = np.zeros(image_shape[:2] + (N_PIXEL_CLASSES,))
-
-    # Note: the road dataset is presumably the most accurate (closest to ground truth), burn it in first
-    pixels[:, :, PIXEL_INDEX["road"]][np.where(road_patch[:, :, 0])] = 1
-
-    # Note: next we burn in the building dataset in places that aren't already coded as roads
-    pixels[:, :, PIXEL_INDEX["building"]][
-        np.where(
-            np.logical_and(
-                building_patch[:, :, 0],
-                np.logical_not(pixels[:, :, PIXEL_INDEX["road"]]),
-            )
-        )
-    ] = 1
-
-    # Note: next, burn in CDL codes in pixels that aren't already coded as road or building
-    not_road_or_building = np.logical_not(
-        np.logical_or(
-            pixels[:, :, PIXEL_INDEX["road"]], pixels[:, :, PIXEL_INDEX["building"]]
-        )
-    )
-
-    forest = label_encoder.transform(["forest"])[0]
-    corn_soy = label_encoder.transform(["corn_soy"])[0]
-    water = label_encoder.transform(["water"])[0]
-
-    pixels[:, :, PIXEL_INDEX["forest"]][
-        np.where(np.logical_and(cdl_patch[:, :, 0] == forest, not_road_or_building))
-    ] = 1
-    pixels[:, :, PIXEL_INDEX["corn_soy"]][
-        np.where(np.logical_and(cdl_patch[:, :, 0] == corn_soy, not_road_or_building))
-    ] = 1
-    pixels[:, :, PIXEL_INDEX["water"]][
-        np.where(np.logical_and(cdl_patch[:, :, 0] == water, not_road_or_building))
-    ] = 1
-
-    # Note: pixels that are not coded by the logic above are coded as other
-    pixels[:, :, PIXEL_INDEX["other"]][np.where(pixels.sum(axis=2) == 0)] = 1
-
-    return pixels
+    return to_categorical(y_patch, num_classes=len(label_encoder.classes_)).astype(int)
 
 
 def get_random_patch(annotated_scene, image_shape, label_encoder):
 
-    naip_values, cdl_values, road_values, building_values = annotated_scene
+    naip_values, y_values = annotated_scene
 
     # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
     x_start = np.random.choice(range(naip_values.shape[0] - image_shape[0]))
@@ -130,24 +84,20 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     y_end = y_start + image_shape[1]
 
     naip_patch = naip_values[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
+    y_patch = y_values[x_start:x_end, y_start:y_end]
 
     forest = label_encoder.transform(["forest"])[0]
-    is_majority_forest = int(
-        np.mean(cdl_values[x_start:x_end, y_start:y_end] == forest) > 0.5
-    )
+    is_majority_forest = int(np.mean(y_patch == forest) > 0.5)
 
-    road_patch = road_values[x_start:x_end, y_start:y_end]
-    has_roads = int(np.mean(road_patch) > 0.001)
+    road = label_encoder.transform([CDL_CLASS_ROAD])[0]
+    has_roads = int(np.mean(y_patch == road) > 0.001)
 
-    building_patch = building_values[x_start:x_end, y_start:y_end]
-    has_buildings = int(np.mean(building_patch) > 0.0001)
+    building = label_encoder.transform([CDL_CLASS_BUILDING])[0]
+    has_buildings = int(np.mean(y_patch == building) > 0.0001)
 
-    cdl_patch = cdl_values[x_start:x_end, y_start:y_end]
-    modal_land_cover = stats.mode(cdl_patch, axis=None).mode[0]
+    modal_land_cover = stats.mode(y_patch, axis=None).mode[0]
 
-    pixels = get_one_hot_encoded_pixels(
-        image_shape, road_patch, building_patch, cdl_patch, label_encoder
-    )
+    pixels = get_one_hot_encoded_pixels(image_shape, y_patch, label_encoder)
 
     labels = {
         HAS_BUILDINGS: has_buildings,
