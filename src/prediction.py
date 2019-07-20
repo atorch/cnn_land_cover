@@ -20,16 +20,17 @@ def get_colormap(label_encoder):
     water = label_encoder.transform(["water"])[0]
     wetlands = label_encoder.transform(["wetlands"])[0]
 
+    # TODO Put this mapping in yml config?
     return {
-        building: (102, 51, 0),
-        corn_soy: (230, 180, 30),
-        developed: (224, 224, 224),
-        forest: (0, 102, 0),
-        other: (255, 255, 255),
-        pasture: (172, 226, 118),
-        road: (128, 128, 128),
-        water: (0, 102, 204),
-        wetlands: (0, 153, 153),
+        building: {"rgb": (102, 51, 0), "name": "building"},
+        corn_soy: {"rgb": (230, 180, 30), "name": "corn_soy"},
+        developed: {"rgb": (224, 224, 224), "name": "developed"},
+        forest: {"rgb": (0, 102, 0), "name": "forest"},
+        other: {"rgb": (255, 255, 255), "name": "other"},
+        pasture: {"rgb": (172, 226, 118), "name": "pasture"},
+        road: {"rgb": (128, 128, 128), "name": "road"},
+        water: {"rgb": (0, 102, 204), "name": "water"},
+        wetlands: {"rgb": (0, 153, 153), "name": "wetlands"},
     }
 
 
@@ -101,4 +102,4 @@ def predict_pixels_entire_scene(
 
         outfile.write(pixel_predictions_argmax.transpose(), 1)
 
-        outfile.write_colormap(1, colormap)
+        outfile.write_colormap(1, {k: v["rgb"] for k, v in colormap.items()})

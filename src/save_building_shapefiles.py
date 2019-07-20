@@ -33,6 +33,14 @@ def get_naip_scenes():
 
     for naip_path in naip_paths:
 
+        naip_file = os.path.split(naip_path)[1]
+        building_outpath = os.path.join(
+            BUILDING_ANNOTATION_DIR, naip_file.replace(".tif", ".shp")
+        )
+        if os.path.exists(building_outpath):
+            print(f"{building_outpath} already exists, skipping corresponding naip scene")
+            continue
+
         naip = rasterio.open(naip_path)
 
         projection_fn = partial(
@@ -105,6 +113,7 @@ def save_building_shapefiles(naip_scenes):
 def main():
 
     naip_scenes = get_naip_scenes()
+    print(f"annotating the following naip scenes:\n {naip_scenes.keys()}")
 
     # TODO List of states should be based on NAIP scene footprints
     for state in ["Illinois", "Iowa", "Minnesota", "Wisconsin"]:
