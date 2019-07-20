@@ -21,7 +21,6 @@ python src/fit_model.py
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
 * [ ] GPU
-* [ ] Test set confusion matrices
 * [ ] Tensorboard
 * [ ] Tune dropout probability, number of filters, number of blocks
 * [ ] Visualizations
@@ -45,53 +44,69 @@ with their labels (one label per objective).
 [Fully convolutional neural network](src/cnn.py) with four objectives:
 
 ```
+Classification report for has_buildings:
+              precision    recall  f1-score   support
+
+           0       0.82      0.97      0.89       319
+           1       0.96      0.76      0.85       281
+
+    accuracy                           0.87       600
+   macro avg       0.89      0.86      0.87       600
+weighted avg       0.89      0.87      0.87       600
+
 Classification report for is_majority_forest:
               precision    recall  f1-score   support
 
-           0       0.99      0.98      0.98       506
-           1       0.89      0.93      0.91        94
+           0       0.97      0.97      0.97       526
+           1       0.79      0.77      0.78        74
 
-    accuracy                           0.97       600
-   macro avg       0.94      0.95      0.94       600
-weighted avg       0.97      0.97      0.97       600
+    accuracy                           0.95       600
+   macro avg       0.88      0.87      0.88       600
+weighted avg       0.95      0.95      0.95       600
 
 Classification report for has_roads:
               precision    recall  f1-score   support
 
-           0       0.81      0.93      0.86       269
-           1       0.93      0.82      0.88       331
+           0       0.94      0.90      0.92       273
+           1       0.92      0.95      0.94       327
 
-    accuracy                           0.87       600
-   macro avg       0.87      0.88      0.87       600
-weighted avg       0.88      0.87      0.87       600
+    accuracy                           0.93       600
+   macro avg       0.93      0.93      0.93       600
+weighted avg       0.93      0.93      0.93       600
 
 Classification report for modal_land_cover:
               precision    recall  f1-score   support
 
-    corn_soy       0.85      0.74      0.79       191
-   developed       0.85      0.93      0.89       149
-      forest       0.82      0.86      0.84       112
-       other       0.53      0.16      0.25        56
-     pasture       0.23      0.45      0.30        51
-       water       0.90      0.95      0.93        20
-    wetlands       0.71      0.57      0.63        21
+    building       0.00      0.00      0.00         0
+    corn_soy       0.89      0.81      0.85       205
+   developed       0.87      0.84      0.86       135
+      forest       0.84      0.83      0.84        89
+       other       0.37      0.37      0.37        60
+     pasture       0.30      0.60      0.40        47
+        road       0.00      0.00      0.00         0
+       water       0.97      0.85      0.90        33
+    wetlands       1.00      0.45      0.62        31
 
-    accuracy                           0.73       600
-   macro avg       0.70      0.66      0.66       600
-weighted avg       0.76      0.73      0.73       600
+   micro avg       0.74      0.74      0.74       600
+   macro avg       0.58      0.53      0.54       600
+weighted avg       0.79      0.74      0.76       600
 
 Classification report for pixels:
               precision    recall  f1-score   support
 
-       other       0.72      0.86      0.79  19218490
-        road       0.70      0.04      0.08    875662
-      forest       0.77      0.80      0.78   6566224
-    corn_soy       0.88      0.63      0.73  11372577
-       water       0.86      0.88      0.87   1288647
+    building       0.56      0.62      0.59   1585908
+    corn_soy       0.88      0.76      0.82  12166991
+   developed       0.68      0.61      0.64   6808575
+      forest       0.73      0.78      0.75   5250299
+       other       0.40      0.47      0.43   5173097
+     pasture       0.22      0.35      0.27   3350083
+        road       0.41      0.45      0.43    916645
+       water       0.94      0.87      0.91   2026787
+    wetlands       0.74      0.37      0.49   2043215
 
-    accuracy                           0.77  39321600
-   macro avg       0.78      0.64      0.65  39321600
-weighted avg       0.78      0.77      0.76  39321600
+    accuracy                           0.64  39321600
+   macro avg       0.62      0.59      0.59  39321600
+weighted avg       0.68      0.64      0.65  39321600
 ```
 
 # Visualization

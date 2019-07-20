@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 from shapely.geometry import Polygon
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 
 from cnn import (
@@ -36,7 +36,7 @@ from constants import (
 )
 from generator import get_generator
 from normalization import get_X_mean_and_std, get_X_normalized, normalize_scenes
-from prediction import predict_pixels_entire_scene
+from prediction import get_colormap, predict_pixels_entire_scene
 
 
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
@@ -274,13 +274,23 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
 
         elif name == PIXELS:
 
+            y_pred = test_predictions[index].argmax(axis=-1).flatten()
+            y_true = test_y[name].argmax(axis=-1).flatten()
+
             print(
                 classification_report(
-                    y_pred=test_predictions[index].argmax(axis=-1).flatten(),
-                    y_true=test_y[name].argmax(axis=-1).flatten(),
+                    y_pred=y_pred,
+                    y_true=y_true,
                     target_names=label_encoder.classes_,
                 )
             )
+
+            # TODO Not very helpful without class names (or normalization)
+            print("Confusion matrix:")
+            print(confusion_matrix(
+                y_pred=label_encoder.classes_[y_pred],
+                y_true=label_encoder.classes_[y_true],
+            ))
 
         else:
 
@@ -319,10 +329,13 @@ def main():
 
     print_classification_reports(test_X, test_y, model, label_encoder)
 
+    colormap = get_colormap(label_encoder)
+    print(f"Colormap used for predictions: {colormap}")
+
     for test_scene in config["test_scenes"]:
 
         predict_pixels_entire_scene(
-            model, test_scene, X_mean_train, X_std_train, IMAGE_SHAPE, label_encoder
+            model, test_scene, X_mean_train, X_std_train, IMAGE_SHAPE, label_encoder, colormap
         )
 
 

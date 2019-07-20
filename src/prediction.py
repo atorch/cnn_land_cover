@@ -4,11 +4,37 @@ import numpy as np
 import rasterio
 
 from cnn import PIXELS, get_output_names
+from constants import CDL_CLASS_BUILDING, CDL_CLASS_ROAD, CDL_CLASS_OTHER
 from normalization import get_X_normalized
 
 
+def get_colormap(label_encoder):
+
+    building = label_encoder.transform([CDL_CLASS_BUILDING])[0]
+    corn_soy = label_encoder.transform(["corn_soy"])[0]
+    developed = label_encoder.transform(["developed"])[0]
+    forest = label_encoder.transform(["forest"])[0]
+    other = label_encoder.transform([CDL_CLASS_OTHER])[0]
+    pasture = label_encoder.transform(["pasture"])[0]
+    road = label_encoder.transform([CDL_CLASS_ROAD])[0]
+    water = label_encoder.transform(["water"])[0]
+    wetlands = label_encoder.transform(["wetlands"])[0]
+
+    return {
+        building: (102, 51, 0),
+        corn_soy: (230, 180, 30),
+        developed: (224, 224, 224),
+        forest: (0, 102, 0),
+        other: (255, 255, 255),
+        pasture: (172, 226, 118),
+        road: (128, 128, 128),
+        water: (0, 102, 204),
+        wetlands: (0, 153, 153),
+    }
+
+
 def predict_pixels_entire_scene(
-    model, naip_path, X_mean_train, X_std_train, image_shape, label_encoder
+    model, naip_path, X_mean_train, X_std_train, image_shape, label_encoder, colormap
 ):
 
     print(f"Predicting on {naip_path}")
@@ -70,15 +96,6 @@ def predict_pixels_entire_scene(
     )
 
     print(f"Saving {outpath}")
-
-    # TODO Use PIXEL_CLASSES  # TODO Buildings
-    colormap = {
-        0: (255, 255, 255),
-        1: (96, 96, 96),
-        2: (0, 102, 0),
-        3: (230, 180, 30),  # Gold?
-        4: (0, 102, 204),  # Blue?
-    }
 
     with rasterio.open(outpath, "w", **profile) as outfile:
 
