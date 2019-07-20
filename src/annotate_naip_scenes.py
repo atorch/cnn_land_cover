@@ -22,6 +22,9 @@ from constants import (
     COUNTY_FILE,
     NAIP_DIR,
     ROAD_ANNOTATION_DIR,
+    ROAD_BUFFER_METERS,
+    ROAD_DIR,
+    ROAD_FORMAT,
 )
 
 
