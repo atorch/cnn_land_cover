@@ -2,7 +2,9 @@ import numpy as np
 import rasterio
 
 
-def main(naip_path="./naip/m_2708029_ne_17_1_20171211.tif", outpath="./colormap_example.tif"):
+def main(
+    naip_path="./naip/m_2708029_ne_17_1_20171211.tif", outpath="./colormap_example.tif"
+):
 
     naip = rasterio.open(naip_path)
 
@@ -20,15 +22,16 @@ def main(naip_path="./naip/m_2708029_ne_17_1_20171211.tif", outpath="./colormap_
     profile["count"] = 1
 
     colormap = {
-        0: (50, 50, 255),  # RGB dark blue, complement is yellow
-        1: (255, 255, 0),  # RGB yellow, comeplemnt is blue
-        2: (150, 0, 100),  # RGB purple-ish, complement is green
+        0: (50, 50, 255),  # RGB dark blue
+        1: (255, 255, 0),  # RGB yellow
+        2: (150, 0, 100),  # RGB purple-ish
     }
 
     with rasterio.open(outpath, "w", **profile) as outfile:
 
         outfile.write(new_X, 1)
         outfile.write_colormap(1, colormap)
+
 
 if __name__ == "__main__":
     main()
