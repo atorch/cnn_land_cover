@@ -13,11 +13,8 @@ CDL_ANNOTATION_DIR = "./cdl_annotations"
 CDL_FILE = "2017_30m_cdls.img"
 CDL_DIR = "./cdl"
 
-# Note: any CDL class absent from CDL_MAPPING_FILE is coded as CDL_CLASS_OTHER
+# Note: any CDL class absent from CDL_MAPPING_FILE is coded as other
 CDL_MAPPING_FILE = "./config/cdl_classes.yml"
-CDL_CLASS_OTHER = "other"
-CDL_CLASS_BUILDING = "building"
-CDL_CLASS_ROAD = "road"
 
 COUNTY_DIR = "./county"
 COUNTY_FILE = "tl_2017_us_county.shp"

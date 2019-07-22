@@ -5,8 +5,6 @@ from scipy import stats
 from cnn import HAS_BUILDINGS, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER, PIXELS
 
 from constants import (
-    CDL_CLASS_BUILDING,
-    CDL_CLASS_ROAD,
     HAS_BUILDINGS,
     HAS_ROADS,
     PIXELS,
@@ -89,10 +87,10 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
     forest = label_encoder.transform(["forest"])[0]
     is_majority_forest = int(np.mean(y_patch == forest) > 0.5)
 
-    road = label_encoder.transform([CDL_CLASS_ROAD])[0]
+    road = label_encoder.transform(["road"])[0]
     has_roads = int(np.mean(y_patch == road) > 0.001)
 
-    building = label_encoder.transform([CDL_CLASS_BUILDING])[0]
+    building = label_encoder.transform(["building"])[0]
     has_buildings = int(np.mean(y_patch == building) > 0.0001)
 
     modal_land_cover = stats.mode(y_patch, axis=None).mode[0]

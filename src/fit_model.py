@@ -25,9 +25,6 @@ from cnn import (
 from constants import (
     BUILDING_ANNOTATION_DIR,
     CDL_ANNOTATION_DIR,
-    CDL_CLASS_BUILDING,
-    CDL_CLASS_ROAD,
-    CDL_CLASS_OTHER,
     CDL_MAPPING_FILE,
     IMAGE_SHAPE,
     MODEL_CONFIG,
@@ -41,12 +38,15 @@ from prediction import get_colormap, predict_pixels_entire_scene
 
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
 
-    encoded_other = label_encoder.transform([CDL_CLASS_OTHER])[0]
+    encoded_other = label_encoder.transform(["other"])[0]
 
     # Note: preserve CDL dtype (uint8) to save memory
     cdl_recoded = np.full(cdl_values.shape, encoded_other, dtype=cdl_values.dtype)
 
     for cdl_class_string, cdl_class_ints in cdl_mapping.items():
+
+        if not cdl_class_ints:
+            continue
 
         encoded_cdl_class = label_encoder.transform([cdl_class_string])[0]
         cdl_recoded[np.isin(cdl_values, cdl_class_ints)] = encoded_cdl_class
@@ -62,12 +62,7 @@ def get_label_encoder_and_mapping():
 
     label_encoder = LabelEncoder()
 
-    # TODO Buggy if not all cdl_classes are present in the training set?
-    cdl_classes = list(cdl_mapping.keys()) + [
-        CDL_CLASS_BUILDING,
-        CDL_CLASS_ROAD,
-        CDL_CLASS_OTHER,
-    ]
+    cdl_classes = list(cdl_mapping.keys())
     label_encoder.fit(cdl_classes)
 
     return label_encoder, cdl_mapping
@@ -83,10 +78,10 @@ def get_y_combined(y_cdl_recoded, y_road, y_building, label_encoder):
     # TODO Make sure y_combined is uint8
     y_combined = y_cdl_recoded.copy()
 
-    road = label_encoder.transform([CDL_CLASS_ROAD])[0]
+    road = label_encoder.transform(["road"])[0]
     y_combined[np.where(y_road)] = road
 
-    building = label_encoder.transform([CDL_CLASS_BUILDING])[0]
+    building = label_encoder.transform(["building"])[0]
     y_combined[np.where(y_building)] = building
 
     return y_combined
@@ -210,6 +205,11 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     validation_generator = get_generator(validation_scenes, label_encoder, IMAGE_SHAPE)
 
+    # TODO Also use class_weight when computing test accuracy stats
+    # TODO Doesn't work for pixels, see https://github.com/keras-team/keras/issues/3653
+    # class_weight = get_class_weight(label_encoder)
+    # print(f"Class weights used in training: {class_weight}")
+
     # TODO Tensorboard
     history = model.fit_generator(
         generator=training_generator,
@@ -279,18 +279,18 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
 
             print(
                 classification_report(
-                    y_pred=y_pred,
-                    y_true=y_true,
-                    target_names=label_encoder.classes_,
+                    y_pred=y_pred, y_true=y_true, target_names=label_encoder.classes_
                 )
             )
 
             # TODO Not very helpful without class names (or normalization)
             print("Confusion matrix:")
-            print(confusion_matrix(
-                y_pred=label_encoder.classes_[y_pred],
-                y_true=label_encoder.classes_[y_true],
-            ))
+            print(
+                confusion_matrix(
+                    y_pred=label_encoder.classes_[y_pred],
+                    y_true=label_encoder.classes_[y_true],
+                )
+            )
 
         else:
 
@@ -304,6 +304,16 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
                     y_pred=test_predictions[index], y_true=test_y[name]
                 )
             )
+
+
+def get_class_weight(label_encoder):
+
+    return {
+        PIXELS: {
+            label_encoder.transform([c])[0]: 0.0 if c in ["developed", "other"] else 1.0
+            for c in label_encoder.classes_
+        }
+    }
 
 
 def main():
@@ -335,7 +345,13 @@ def main():
     for test_scene in config["test_scenes"]:
 
         predict_pixels_entire_scene(
-            model, test_scene, X_mean_train, X_std_train, IMAGE_SHAPE, label_encoder, colormap
+            model,
+            test_scene,
+            X_mean_train,
+            X_std_train,
+            IMAGE_SHAPE,
+            label_encoder,
+            colormap,
         )
 
 

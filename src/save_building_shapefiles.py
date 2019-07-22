@@ -38,7 +38,9 @@ def get_naip_scenes():
             BUILDING_ANNOTATION_DIR, naip_file.replace(".tif", ".shp")
         )
         if os.path.exists(building_outpath):
-            print(f"{building_outpath} already exists, skipping corresponding naip scene")
+            print(
+                f"{building_outpath} already exists, skipping corresponding naip scene"
+            )
             continue
 
         naip = rasterio.open(naip_path)

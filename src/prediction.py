@@ -4,19 +4,18 @@ import numpy as np
 import rasterio
 
 from cnn import PIXELS, get_output_names
-from constants import CDL_CLASS_BUILDING, CDL_CLASS_ROAD, CDL_CLASS_OTHER
 from normalization import get_X_normalized
 
 
 def get_colormap(label_encoder):
 
-    building = label_encoder.transform([CDL_CLASS_BUILDING])[0]
+    building = label_encoder.transform(["building"])[0]
     corn_soy = label_encoder.transform(["corn_soy"])[0]
     developed = label_encoder.transform(["developed"])[0]
     forest = label_encoder.transform(["forest"])[0]
-    other = label_encoder.transform([CDL_CLASS_OTHER])[0]
+    other = label_encoder.transform(["other"])[0]
     pasture = label_encoder.transform(["pasture"])[0]
-    road = label_encoder.transform([CDL_CLASS_ROAD])[0]
+    road = label_encoder.transform(["road"])[0]
     water = label_encoder.transform(["water"])[0]
     wetlands = label_encoder.transform(["wetlands"])[0]
 
