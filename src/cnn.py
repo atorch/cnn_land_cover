@@ -1,4 +1,7 @@
+from functools import partial
+
 import keras
+from keras import backend as K
 from keras.models import Model
 from keras.layers import (
     BatchNormalization,
@@ -14,6 +17,7 @@ from keras.layers import (
 )
 
 from constants import (
+    CDL_CLASSES_TO_MASK,
     HAS_BUILDINGS,
     HAS_ROADS,
     PIXELS,
@@ -66,7 +70,27 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
     return BatchNormalization()(conv2)
 
 
-def get_keras_model(image_shape, n_classes):
+def get_masked_categorical_crossentropy(cdl_indices_to_mask):
+    def masked_categorical_crossentropy(y_true, y_pred):
+
+        # Used for pixel classifications: mask pixels whose class is in cdl_indices_to_mask
+        # Note: shapes are (batch, image_shape, image_shape, n_classes)
+        # TODO Speed this up, test it
+
+        mask = K.ones_like(y_true[:, :, :, 0])
+
+        for cdl_index in cdl_indices_to_mask:
+            cdl_index_indicators = K.cast(
+                K.equal(y_true[:, :, :, cdl_index], 1), "float32"
+            )
+            mask -= cdl_index_indicators
+
+        return K.categorical_crossentropy(y_true, y_pred) * mask
+
+    return masked_categorical_crossentropy
+
+
+def get_keras_model(image_shape, label_encoder):
 
     # Note: model is fully convolutional, so image width and height can be arbitrary
     input_layer = Input(shape=(None, None, image_shape[2]))
@@ -82,6 +106,8 @@ def get_keras_model(image_shape, n_classes):
         )
 
     maxpool = GlobalAveragePooling2D()(current_last_layer)
+
+    n_classes = len(label_encoder.classes_)
 
     output_buildings = Dense(1, activation="sigmoid", name=HAS_BUILDINGS)(maxpool)
     output_forest = Dense(1, activation="sigmoid", name=IS_MAJORITY_FOREST)(maxpool)
@@ -115,6 +141,11 @@ def get_keras_model(image_shape, n_classes):
 
     nadam = keras.optimizers.Nadam()
 
+    cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
+    masked_categorical_crossentropy = get_masked_categorical_crossentropy(
+        cdl_indices_to_mask
+    )
+
     model.compile(
         optimizer=nadam,
         loss={
@@ -122,7 +153,7 @@ def get_keras_model(image_shape, n_classes):
             HAS_ROADS: keras.losses.binary_crossentropy,
             IS_MAJORITY_FOREST: keras.losses.binary_crossentropy,
             MODAL_LAND_COVER: keras.losses.categorical_crossentropy,
-            PIXELS: keras.losses.categorical_crossentropy,
+            PIXELS: masked_categorical_crossentropy,
         },
         metrics=["accuracy"],
     )

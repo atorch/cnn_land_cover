@@ -25,6 +25,7 @@ from cnn import (
 from constants import (
     BUILDING_ANNOTATION_DIR,
     CDL_ANNOTATION_DIR,
+    CDL_CLASSES_TO_MASK,
     CDL_MAPPING_FILE,
     IMAGE_SHAPE,
     MODEL_CONFIG,
@@ -188,7 +189,7 @@ def fit_model(config, label_encoder, cdl_mapping):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(IMAGE_SHAPE, len(label_encoder.classes_))
+    model = get_keras_model(IMAGE_SHAPE, label_encoder)
 
     # plot_model(model, to_file='model.png')
 
@@ -207,8 +208,8 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     # TODO Also use class_weight when computing test accuracy stats
     # TODO Doesn't work for pixels, see https://github.com/keras-team/keras/issues/3653
-    # class_weight = get_class_weight(label_encoder)
-    # print(f"Class weights used in training: {class_weight}")
+    class_weight = get_class_weight(label_encoder)
+    print(f"Class weights used in training: {class_weight}")
 
     # TODO Tensorboard
     history = model.fit_generator(
@@ -221,6 +222,7 @@ def fit_model(config, label_encoder, cdl_mapping):
                 patience=20, monitor="val_loss", restore_best_weights=True
             )
         ],
+        class_weight=class_weight,
         validation_data=validation_generator,
         validation_steps=10,
     )
@@ -252,24 +254,54 @@ def get_config(model_config):
     return config
 
 
+def print_masked_classification_report(
+    name, y_pred, y_true, cdl_indices_to_mask, label_encoder
+):
+
+    y_true_in_indices_to_mask = np.in1d(y_true, cdl_indices_to_mask)
+    y_pred = y_pred[np.logical_not(y_true_in_indices_to_mask)]
+    y_true = y_true[np.logical_not(y_true_in_indices_to_mask)]
+
+    print(
+        f"Classification report for {name} with masking (i.e. ignoring {CDL_CLASSES_TO_MASK}):"
+    )
+    print(
+        classification_report(
+            y_pred=y_pred,
+            y_true=y_true,
+            target_names=label_encoder.classes_,
+            labels=range(len(label_encoder.classes_)),
+        )
+    )
+
+
 def print_classification_reports(test_X, test_y, model, label_encoder):
 
     test_predictions = model.predict(test_X)
 
     output_names = get_output_names(model)
 
+    cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
+
     for index, name in enumerate(output_names):
 
         print(f"Classification report for {name}:")
         if name == MODAL_LAND_COVER:
 
+            y_pred = test_predictions[index].argmax(axis=-1)
+            y_true = test_y[name].argmax(axis=-1)
+
             print(
                 classification_report(
-                    y_pred=test_predictions[index].argmax(axis=-1),
-                    y_true=test_y[name].argmax(axis=-1),
+                    y_pred=y_pred,
+                    y_true=y_true,
                     target_names=label_encoder.classes_,
                     labels=range(len(label_encoder.classes_)),
                 )
+            )
+
+            print_masked_classification_report(
+                name, y_pred, y_true, cdl_indices_to_mask, label_encoder
             )
 
         elif name == PIXELS:
@@ -281,6 +313,10 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
                 classification_report(
                     y_pred=y_pred, y_true=y_true, target_names=label_encoder.classes_
                 )
+            )
+
+            print_masked_classification_report(
+                name, y_pred, y_true, cdl_indices_to_mask, label_encoder
             )
 
             # TODO Not very helpful without class names (or normalization)
@@ -308,9 +344,12 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
 
 def get_class_weight(label_encoder):
 
+    # Note: using the same class weights for pixel classifications is tricky and requires a custom loss fn
+    # See https://github.com/keras-team/keras/issues/3653
+
     return {
-        PIXELS: {
-            label_encoder.transform([c])[0]: 0.0 if c in ["developed", "other"] else 1.0
+        MODAL_LAND_COVER: {
+            label_encoder.transform([c])[0]: 0.0 if c in CDL_CLASSES_TO_MASK else 1.0
             for c in label_encoder.classes_
         }
     }
@@ -325,6 +364,7 @@ def main():
     model, X_mean_train, X_std_train = fit_model(config, label_encoder, cdl_mapping)
 
     # TODO Filename  # TODO Also save X_{mean,std}_train
+    # TODO https://github.com/keras-team/keras/issues/5916 custom objects
     model.save("my_model.h5")
 
     test_scenes = get_annotated_scenes(
