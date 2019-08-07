@@ -23,6 +23,7 @@ from constants import (
     NAIP_DIR,
     ROAD_ANNOTATION_DIR,
     ROAD_BUFFER_METERS,
+    ROAD_BUFFER_METERS_DEFAULT,
     ROAD_DIR,
     ROAD_FORMAT,
 )
@@ -112,6 +113,8 @@ def save_cdl_annotation_for_naip_raster(cdl, naip_file, naip):
     x_cdl, y_cdl = pyproj.transform(proj_naip, proj_cdl, x_naip, y_naip)
 
     cdl_values = get_raster_values(cdl, x_cdl, y_cdl)
+
+    # TODO Mask CDL developed when close to NAIP roads
 
     cdl_values = cdl_values.reshape((naip.meta["height"], naip.meta["width"]))
 
@@ -216,9 +219,12 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
             # Do they distinguish paved versus unpaved roads?  If so, treat them differently?
             road_geometry = shape(road["geometry"])
 
+            road_type = road["properties"]["MTFCC"]
+
             road_geometry_transformed = transform(projection_fn, road_geometry)
 
-            road_geometries.append(road_geometry_transformed.buffer(ROAD_BUFFER_METERS))
+            road_buffer_meters = ROAD_BUFFER_METERS.get(road_type, ROAD_BUFFER_METERS_DEFAULT)
+            road_geometries.append(road_geometry_transformed.buffer(road_buffer_meters))
 
     road_values = rasterize(
         road_geometries,

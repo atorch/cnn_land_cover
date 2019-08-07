@@ -21,6 +21,7 @@ wetlands:
   - 87
   - 190
   - 195
-road:
 building:
+mask:
 other:
+road:

@@ -13,7 +13,8 @@ CDL_ANNOTATION_DIR = "./cdl_annotations"
 CDL_FILE = "2017_30m_cdls.img"
 CDL_DIR = "./cdl"
 
-CDL_CLASSES_TO_MASK = ["developed", "other"]
+# TODO Print which cdl codes are most common within other
+CDL_CLASSES_TO_MASK = ["mask", "other"]
 
 # Note: any CDL class absent from CDL_MAPPING_FILE is coded as other
 CDL_MAPPING_FILE = "./config/cdl_classes.yml"
@@ -26,7 +27,12 @@ ROAD_DIR = "./roads"
 ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
 # Note: buffering is applied after projecting road shapes into NAIP's CRS
-ROAD_BUFFER_METERS = 2.0
+# For road type definitions, see https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2009/TGRSHP09AF.pdf
+ROAD_BUFFER_METERS_DEFAULT = 3.0
+ROAD_BUFFER_METERS = {
+    "S1100": 5.0,
+    "S1200": 5.0,
+}
 
 HAS_BUILDINGS = "has_buildings"
 HAS_ROADS = "has_roads"
