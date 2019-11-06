@@ -29,10 +29,7 @@ ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 # Note: buffering is applied after projecting road shapes into NAIP's CRS
 # For road type definitions, see https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2009/TGRSHP09AF.pdf
 ROAD_BUFFER_METERS_DEFAULT = 3.0
-ROAD_BUFFER_METERS = {
-    "S1100": 5.0,
-    "S1200": 5.0,
-}
+ROAD_BUFFER_METERS = {"S1100": 5.0, "S1200": 5.0}
 
 HAS_BUILDINGS = "has_buildings"
 HAS_ROADS = "has_roads"

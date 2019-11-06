@@ -33,7 +33,7 @@ ADDITIONAL_FILTERS_PER_BLOCK = 16
 DROPOUT_RATE = 0.15
 
 
-def add_downsampling_block(input_layer, block_index, downsampling_conv2_layers):
+def add_downsampling_block(input_layer, block_index):
 
     n_filters = BASE_N_FILTERS + ADDITIONAL_FILTERS_PER_BLOCK * block_index
 
@@ -43,16 +43,14 @@ def add_downsampling_block(input_layer, block_index, downsampling_conv2_layers):
     dropout = Dropout(rate=DROPOUT_RATE)(conv1)
     conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(dropout)
 
-    downsampling_conv2_layers[block_index] = conv2
-
     batchnorm = BatchNormalization()(conv2)
 
     # Note: Don't MaxPool in last downsampling block
     if block_index == N_BLOCKS - 1:
 
-        return batchnorm
+        return batchnorm, conv2
 
-    return MaxPooling2D()(batchnorm)
+    return MaxPooling2D()(batchnorm), conv2
 
 
 def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
@@ -96,14 +94,16 @@ def get_keras_model(image_shape, label_encoder):
     input_layer = Input(shape=(None, None, image_shape[2]))
 
     # Note: Keep track of conv2 layers so that they can be connected to the upsampling blocks
-    downsampling_conv2_layers = {}
+    downsampling_conv2_layers = []
 
     current_last_layer = input_layer
     for index in range(N_BLOCKS):
 
-        current_last_layer = add_downsampling_block(
-            current_last_layer, index, downsampling_conv2_layers
+        current_last_layer, conv2_layer = add_downsampling_block(
+            current_last_layer, index
         )
+
+        downsampling_conv2_layers.append(conv2_layer)
 
     maxpool = GlobalAveragePooling2D()(current_last_layer)
 

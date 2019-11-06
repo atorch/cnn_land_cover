@@ -1,12 +1,12 @@
-buildings/*
 building_annotations/*
+buildings/*
 cdl/*
 cdl_annotations/*
 county/*
 naip/*
 predictions/*
-roads/*
 road_annotations/*
+roads/*
 sample_images/*
 tl_2018_us_state/*
 qgis_project.qgz
