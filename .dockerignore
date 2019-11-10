@@ -8,6 +8,7 @@ predictions/*
 road_annotations/*
 roads/*
 sample_images/*
+saved_models/*
 tl_2018_us_state/*
 qgis_project.qgz
 *npy

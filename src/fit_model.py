@@ -2,7 +2,6 @@ from collections import Counter
 import datetime as dt
 import json
 import os
-import yaml
 
 import keras
 from keras import callbacks
@@ -12,7 +11,6 @@ import numpy as np
 import rasterio
 from shapely.geometry import Polygon
 from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.preprocessing import LabelEncoder
 
 from cnn import (
     get_keras_model,
@@ -27,15 +25,16 @@ from constants import (
     BUILDING_ANNOTATION_DIR,
     CDL_ANNOTATION_DIR,
     CDL_CLASSES_TO_MASK,
-    CDL_MAPPING_FILE,
     IMAGE_SHAPE,
     MODEL_CONFIG,
     NAIP_DIR,
     ROAD_ANNOTATION_DIR,
+    SAVED_MODELS_DIR,
 )
 from generator import get_generator
 from normalization import get_X_mean_and_std, get_X_normalized, normalize_scenes
 from prediction import get_colormap, predict_pixels_entire_scene
+from utils import get_config, get_label_encoder_and_mapping
 
 
 def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
@@ -54,20 +53,6 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
         cdl_recoded[np.isin(cdl_values, cdl_class_ints)] = encoded_cdl_class
 
     return cdl_recoded
-
-
-def get_label_encoder_and_mapping():
-
-    with open(CDL_MAPPING_FILE, "r") as infile:
-
-        cdl_mapping = yaml.safe_load(infile)
-
-    label_encoder = LabelEncoder()
-
-    cdl_classes = list(cdl_mapping.keys())
-    label_encoder.fit(cdl_classes)
-
-    return label_encoder, cdl_mapping
 
 
 def get_y_combined(y_cdl_recoded, y_road, y_building, label_encoder):
@@ -231,30 +216,6 @@ def fit_model(config, label_encoder, cdl_mapping):
     return model, X_mean_train, X_std_train
 
 
-def get_config(model_config):
-
-    with open(model_config, "r") as infile:
-
-        config = yaml.safe_load(infile)
-
-    assert len(set(config["training_scenes"])) == len(config["training_scenes"])
-    assert len(set(config["validation_scenes"])) == len(config["validation_scenes"])
-    assert len(set(config["test_scenes"])) == len(config["test_scenes"])
-
-    assert (
-        len(set(config["training_scenes"]).intersection(config["validation_scenes"]))
-        == 0
-    )
-    assert (
-        len(set(config["test_scenes"]).intersection(config["validation_scenes"])) == 0
-    )
-
-    # TODO Also assert that training scenes don't intersect test or validation scenes
-    # NAIP scenes can overlap by a few hundred meters
-
-    return config
-
-
 def print_masked_classification_report(
     name, y_pred, y_true, cdl_indices_to_mask, label_encoder
 ):
@@ -363,10 +324,10 @@ def get_model_name():
 
     datetime_now = dt.datetime.now().strftime("%Y_%m_%d_%H")
 
-    return f"cnn_land_cover_{datetime_now}.h5"
+    return os.path.join(SAVED_MODELS_DIR, f"cnn_land_cover_{datetime_now}.h5")
 
 
-def save_X_mean_and_std(X_mean_train, X_std_train, model_name):
+def save_X_mean_and_std_train(X_mean_train, X_std_train, model_name):
 
     outfile_mean = model_name.replace(".h5", "_X_mean_train.npy")
     print(f"Saving X_mean_train to {outfile_mean}")
@@ -388,7 +349,8 @@ def main():
     print(f"Saving model to {model_name}")
     model.save(model_name)
 
-    save_X_mean_and_std(X_mean_train, X_std_train, model_name)
+    # TODO Also save label encoder?
+    save_X_mean_and_std_train(X_mean_train, X_std_train, model_name)
 
     test_scenes = get_annotated_scenes(
         config["test_scenes"], label_encoder, cdl_mapping

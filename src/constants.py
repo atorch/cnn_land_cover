@@ -4,6 +4,8 @@ IMAGE_SHAPE = (256, 256, 4)
 
 MODEL_CONFIG = "./config/model_config.yml"
 
+SAVED_MODELS_DIR = "./saved_models"
+
 NAIP_DIR = "./naip"
 
 BUILDING_ANNOTATION_DIR = "./building_annotations"

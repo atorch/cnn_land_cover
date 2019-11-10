@@ -9,6 +9,7 @@ predictions/*
 roads/*
 road_annotations/*
 sample_images/*
+saved_models/*
 tl_2018_us_state/*
 *npy
 *pyc

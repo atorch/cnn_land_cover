@@ -1,10 +1,14 @@
 import os
 
+from keras.models import load_model
+from keras.utils.generic_utils import get_custom_objects
 import numpy as np
 import rasterio
 
-from cnn import PIXELS, get_output_names
+from cnn import PIXELS, get_output_names, get_masked_categorical_crossentropy
+from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG
 from normalization import get_X_normalized
+from utils import get_config, get_label_encoder_and_mapping
 
 
 def get_colormap(label_encoder):
@@ -102,3 +106,47 @@ def predict_pixels_entire_scene(
         outfile.write(pixel_predictions_argmax.transpose(), 1)
 
         outfile.write_colormap(1, {k: v["rgb"] for k, v in colormap.items()})
+
+
+def load_X_mean_and_std_train(model_name):
+
+    infile_mean = model_name.replace(".h5", "_X_mean_train.npy")
+    infile_std = model_name.replace(".h5", "_X_std_train.npy")
+
+    return np.load(infile_mean), np.load(infile_std)
+
+
+def main(model_name="./saved_models/cnn_land_cover_2019_11_10_02.h5"):
+
+    config = get_config(MODEL_CONFIG)
+    label_encoder, _ = get_label_encoder_and_mapping()
+
+    cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
+    masked_categorical_crossentropy = get_masked_categorical_crossentropy(
+        cdl_indices_to_mask
+    )
+
+    # Note: avoid ValueError: Unknown loss function:masked_categorical_crossentropy when loading saved model
+    get_custom_objects().update({"masked_categorical_crossentropy": masked_categorical_crossentropy})
+
+    model = load_model(model_name)
+
+    X_mean_train, X_std_train = load_X_mean_and_std_train(model_name)
+
+    colormap = get_colormap(label_encoder)
+
+    for test_scene in config["test_scenes"]:
+
+        predict_pixels_entire_scene(
+            model,
+            test_scene,
+            X_mean_train,
+            X_std_train,
+            IMAGE_SHAPE,
+            label_encoder,
+            colormap,
+        )
+
+
+if __name__ == "__main__":
+    main()
