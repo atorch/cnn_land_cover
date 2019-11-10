@@ -1,4 +1,5 @@
 from collections import Counter
+import datetime as dt
 import json
 import os
 import yaml
@@ -94,7 +95,7 @@ def get_annotated_scenes(naip_paths, label_encoder, cdl_mapping):
 
     for naip_path in naip_paths:
 
-        print(f"reading {naip_path}")
+        print(f"Reading {naip_path}")
         with rasterio.open(naip_path) as naip:
 
             X = naip.read()
@@ -219,7 +220,7 @@ def fit_model(config, label_encoder, cdl_mapping):
         verbose=True,
         callbacks=[
             callbacks.EarlyStopping(
-                patience=20, monitor="val_loss", restore_best_weights=True
+                patience=20, monitor="val_loss", restore_best_weights=True, verbose=True
             )
         ],
         class_weight=class_weight,
@@ -311,7 +312,10 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
 
             print(
                 classification_report(
-                    y_pred=y_pred, y_true=y_true, target_names=label_encoder.classes_
+                    y_pred=y_pred,
+                    y_true=y_true,
+                    target_names=label_encoder.classes_,
+                    labels=range(len(label_encoder.classes_)),
                 )
             )
 
@@ -355,23 +359,43 @@ def get_class_weight(label_encoder):
     }
 
 
+def get_model_name():
+
+    datetime_now = dt.datetime.now().strftime("%Y_%m_%d_%H")
+
+    return f"cnn_land_cover_{datetime_now}.h5"
+
+
+def save_X_mean_and_std(X_mean_train, X_std_train, model_name):
+
+    outfile_mean = model_name.replace(".h5", "_X_mean_train.npy")
+    print(f"Saving X_mean_train to {outfile_mean}")
+    np.save(outfile_mean, X_mean_train, allow_pickle=False)
+
+    outfile_std = model_name.replace(".h5", "_X_std_train.npy")
+    print(f"Saving X_std_train to {outfile_std}")
+    np.save(outfile_std, X_std_train, allow_pickle=False)
+
+
 def main():
 
     config = get_config(MODEL_CONFIG)
-
     label_encoder, cdl_mapping = get_label_encoder_and_mapping()
 
+    model_name = get_model_name()
     model, X_mean_train, X_std_train = fit_model(config, label_encoder, cdl_mapping)
 
-    # TODO Filename  # TODO Also save X_{mean,std}_train
-    # TODO https://github.com/keras-team/keras/issues/5916 custom objects
-    model.save("my_model.h5")
+    print(f"Saving model to {model_name}")
+    model.save(model_name)
+
+    save_X_mean_and_std(X_mean_train, X_std_train, model_name)
 
     test_scenes = get_annotated_scenes(
         config["test_scenes"], label_encoder, cdl_mapping
     )
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
+    # Note: use a large batch size so that test set stats have a small standard error
     test_generator = get_generator(
         test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
     )

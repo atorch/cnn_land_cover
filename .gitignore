@@ -10,5 +10,6 @@ roads/*
 road_annotations/*
 sample_images/*
 tl_2018_us_state/*
+*npy
 *pyc
 *.h5

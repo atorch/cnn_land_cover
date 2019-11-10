@@ -10,4 +10,5 @@ roads/*
 sample_images/*
 tl_2018_us_state/*
 qgis_project.qgz
+*npy
 *.h5
