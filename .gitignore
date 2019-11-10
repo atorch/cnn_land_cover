@@ -8,6 +8,7 @@ naip/*
 predictions/*
 roads/*
 road_annotations/*
+road_annotations_for_mask/*
 sample_images/*
 saved_models/*
 tl_2018_us_state/*

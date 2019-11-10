@@ -29,6 +29,7 @@ from constants import (
     MODEL_CONFIG,
     NAIP_DIR,
     ROAD_ANNOTATION_DIR,
+    ROAD_ANNOTATION_FOR_MASK_DIR,
     SAVED_MODELS_DIR,
 )
 from generator import get_generator
@@ -55,21 +56,26 @@ def recode_cdl_values(cdl_values, cdl_mapping, label_encoder):
     return cdl_recoded
 
 
-def get_y_combined(y_cdl_recoded, y_road, y_building, label_encoder):
+def get_y_combined(y_cdl_recoded, y_road, y_road_for_mask, y_building, label_encoder):
 
     ## This function "burns" roads and buildings into the recoded CDL raster
     ## The road and building datasets appear to be more reliable than the CDL,
     ## and they are higher resolution, so roads and buildings take precedence over CDL codes
 
-    # TODO Make sure y_cdl_recoded, y_road and y_building get garbage collected!
-    # TODO Make sure y_combined is uint8
     y_combined = y_cdl_recoded.copy()
 
     road = label_encoder.transform(["road"])[0]
     y_combined[np.where(y_road)] = road
 
+    # Note: this could in theory overwrite some roads
     building = label_encoder.transform(["building"])[0]
     y_combined[np.where(y_building)] = building
+
+    # Note: this masks out pixels that are (1) CDL developed,
+    # (2) not roads or buildings, and (3) close to a road (without being covered by a road)
+    mask = label_encoder.transform(["mask"])[0]
+    developed = label_encoder.transform(["developed"])[0]
+    y_combined[np.where(np.logical_and(y_road_for_mask, y_combined == developed))] = mask
 
     return y_combined
 
@@ -102,11 +108,16 @@ def get_annotated_scenes(naip_paths, label_encoder, cdl_mapping):
 
             y_road = road_annotation.read()
 
+        road_annotation_for_mask_path = os.path.join(ROAD_ANNOTATION_FOR_MASK_DIR, naip_file)
+        with rasterio.open(road_annotation_for_mask_path) as road_annotation_for_mask:
+
+            y_road_for_mask = road_annotation_for_mask.read()
+
         building_annotation_path = os.path.join(BUILDING_ANNOTATION_DIR, naip_file)
         with rasterio.open(building_annotation_path) as building_annotation:
             y_building = building_annotation.read()
 
-        y_combined = get_y_combined(y_cdl_recoded, y_road, y_building, label_encoder)
+        y_combined = get_y_combined(y_cdl_recoded, y_road, y_road_for_mask, y_building, label_encoder)
 
         # Note: swap NAIP and CDL shape from (band, height, width) to (width, height, band)
         annotated_scenes.append([np.swapaxes(X, 0, 2), np.swapaxes(y_combined, 0, 2)])

@@ -22,8 +22,10 @@ from constants import (
     COUNTY_FILE,
     NAIP_DIR,
     ROAD_ANNOTATION_DIR,
+    ROAD_ANNOTATION_FOR_MASK_DIR,
     ROAD_BUFFER_METERS,
     ROAD_BUFFER_METERS_DEFAULT,
+    ROAD_BUFFER_METERS_MASK,
     ROAD_DIR,
     ROAD_FORMAT,
 )
@@ -113,17 +115,9 @@ def save_cdl_annotation_for_naip_raster(cdl, naip_file, naip):
     x_cdl, y_cdl = pyproj.transform(proj_naip, proj_cdl, x_naip, y_naip)
 
     cdl_values = get_raster_values(cdl, x_cdl, y_cdl)
-
-    # TODO Mask CDL developed when close to NAIP roads
-
     cdl_values = cdl_values.reshape((naip.meta["height"], naip.meta["width"]))
 
-    profile = naip.profile.copy()
-
-    # Note: the output has the same width, height, and transform as the NAIP raster,
-    # but contains a single band of CDL codes (whereas the NAIP raster contains 4 bands)
-    profile["dtype"] = cdl.profile["dtype"]
-    profile["count"] = 1
+    profile = get_raster_profile(naip, n_bands=1, dtype=cdl.profile["dtype"])
 
     print(f"writing {output_path}")
 
@@ -174,12 +168,7 @@ def save_building_annotation_for_naip_raster(naip_file, naip):
             (naip.meta["height"], naip.meta["width"]), dtype="uint8"
         )
 
-    profile = naip.profile.copy()
-
-    # Note: the output has the same width, height, and transform as the NAIP raster,
-    # but contains a single band of building indicators (whereas the NAIP raster contains 4 bands)
-    profile["dtype"] = "uint8"
-    profile["count"] = 1
+    profile = get_raster_profile(naip, n_bands=1, dtype="uint8")
 
     print(f"writing {output_path}")
     with rasterio.open(output_path, "w", **profile) as output:
@@ -191,12 +180,18 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
     # Note: the road annotation for a given naip_file has the same file name,
     # but is saved to a different directory
     output_path = os.path.join(ROAD_ANNOTATION_DIR, naip_file)
+    output_path_for_mask = os.path.join(ROAD_ANNOTATION_FOR_MASK_DIR, naip_file)
 
-    if os.path.exists(output_path):
-        print(f"{output_path} already exists, skipping")
+    if os.path.exists(output_path) and os.path.exists(output_path_for_mask):
+        print(f"{output_path} and {output_path_for_mask} already exist, skipping")
         return
 
+    # Note: we save two road annotation rasters:
+    # one is used for labeling pixels as roads (for this raster, a small buffer is applied to the road linefiles),
+    # while the second annotation raster is used to mask CDL developed pixels that are within a large buffer
+    # (but not a small buffer) of the road linefiles
     road_geometries = []
+    road_geometries_for_mask = []
 
     for county in counties:
 
@@ -228,6 +223,8 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
             )
             road_geometries.append(road_geometry_transformed.buffer(road_buffer_meters))
 
+            road_geometries_for_mask.append(road_geometry_transformed.buffer(ROAD_BUFFER_METERS_MASK))
+
     road_values = rasterize(
         road_geometries,
         out_shape=(naip.meta["height"], naip.meta["width"]),
@@ -236,21 +233,39 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
         dtype="uint8",
     )
 
-    # TODO Copied from CDL code, put in a function
+    road_values_for_mask = rasterize(
+        road_geometries_for_mask,
+        out_shape=(naip.meta["height"], naip.meta["width"]),
+        transform=naip.transform,
+        all_touched=True,
+        dtype="uint8",
+    )
+
+    profile = get_raster_profile(naip, n_bands=1, dtype="uint8")
+
+    for road_annotation_dir in [ROAD_ANNOTATION_FOR_MASK_DIR, ROAD_ANNOTATION_DIR]:
+        if not os.path.exists(road_annotation_dir):
+            os.makedirs(road_annotation_dir)
+
+    print(f"writing {output_path}")
+    with rasterio.open(output_path, "w", **profile) as output:
+        output.write(road_values.astype(profile["dtype"]), 1)
+
+    print(f"writing {output_path_for_mask}")
+    with rasterio.open(output_path_for_mask, "w", **profile) as output:
+        output.write(road_values_for_mask.astype(profile["dtype"]), 1)
+
+
+def get_raster_profile(naip, n_bands, dtype):
+
     profile = naip.profile.copy()
 
     # Note: the output has the same width, height, and transform as the NAIP raster,
-    # but contains a single band of road indicators (whereas the NAIP raster contains 4 bands)
-    profile["dtype"] = "uint8"
-    profile["count"] = 1
+    # but contains n_bands bands (whereas the NAIP raster contains 4 bands)
+    profile["dtype"] = dtype
+    profile["count"] = n_bands
 
-    print(f"writing {output_path}")
-
-    if not os.path.exists(ROAD_ANNOTATION_DIR):
-        os.makedirs(ROAD_ANNOTATION_DIR)
-
-    with rasterio.open(output_path, "w", **profile) as output:
-        output.write(road_values.astype(profile["dtype"]), 1)
+    return profile
 
 
 def get_counties(raster):

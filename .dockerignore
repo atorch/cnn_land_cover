@@ -6,6 +6,7 @@ county/*
 naip/*
 predictions/*
 road_annotations/*
+road_annotations_for_mask/*
 roads/*
 sample_images/*
 saved_models/*

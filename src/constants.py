@@ -25,6 +25,7 @@ COUNTY_DIR = "./county"
 COUNTY_FILE = "tl_2017_us_county.shp"
 
 ROAD_ANNOTATION_DIR = "./road_annotations"
+ROAD_ANNOTATION_FOR_MASK_DIR = "./road_annotations_for_mask"
 ROAD_DIR = "./roads"
 ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
@@ -32,6 +33,9 @@ ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 # For road type definitions, see https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2009/TGRSHP09AF.pdf
 ROAD_BUFFER_METERS_DEFAULT = 3.0
 ROAD_BUFFER_METERS = {"S1100": 5.0, "S1200": 5.0}
+
+# Note: roads are buffered by this amount in order to implement CDL developed masking logic
+ROAD_BUFFER_METERS_MASK = 25.0
 
 HAS_BUILDINGS = "has_buildings"
 HAS_ROADS = "has_roads"
