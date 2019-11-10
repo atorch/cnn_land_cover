@@ -223,7 +223,9 @@ def save_road_annotation_for_naip_raster(counties, naip_file, naip):
             )
             road_geometries.append(road_geometry_transformed.buffer(road_buffer_meters))
 
-            road_geometries_for_mask.append(road_geometry_transformed.buffer(ROAD_BUFFER_METERS_MASK))
+            road_geometries_for_mask.append(
+                road_geometry_transformed.buffer(ROAD_BUFFER_METERS_MASK)
+            )
 
     road_values = rasterize(
         road_geometries,

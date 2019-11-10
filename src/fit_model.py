@@ -75,7 +75,9 @@ def get_y_combined(y_cdl_recoded, y_road, y_road_for_mask, y_building, label_enc
     # (2) not roads or buildings, and (3) close to a road (without being covered by a road)
     mask = label_encoder.transform(["mask"])[0]
     developed = label_encoder.transform(["developed"])[0]
-    y_combined[np.where(np.logical_and(y_road_for_mask, y_combined == developed))] = mask
+    y_combined[
+        np.where(np.logical_and(y_road_for_mask, y_combined == developed))
+    ] = mask
 
     return y_combined
 
@@ -108,7 +110,9 @@ def get_annotated_scenes(naip_paths, label_encoder, cdl_mapping):
 
             y_road = road_annotation.read()
 
-        road_annotation_for_mask_path = os.path.join(ROAD_ANNOTATION_FOR_MASK_DIR, naip_file)
+        road_annotation_for_mask_path = os.path.join(
+            ROAD_ANNOTATION_FOR_MASK_DIR, naip_file
+        )
         with rasterio.open(road_annotation_for_mask_path) as road_annotation_for_mask:
 
             y_road_for_mask = road_annotation_for_mask.read()
@@ -117,7 +121,9 @@ def get_annotated_scenes(naip_paths, label_encoder, cdl_mapping):
         with rasterio.open(building_annotation_path) as building_annotation:
             y_building = building_annotation.read()
 
-        y_combined = get_y_combined(y_cdl_recoded, y_road, y_road_for_mask, y_building, label_encoder)
+        y_combined = get_y_combined(
+            y_cdl_recoded, y_road, y_road_for_mask, y_building, label_encoder
+        )
 
         # Note: swap NAIP and CDL shape from (band, height, width) to (width, height, band)
         annotated_scenes.append([np.swapaxes(X, 0, 2), np.swapaxes(y_combined, 0, 2)])

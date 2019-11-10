@@ -37,6 +37,69 @@ def get_colormap(label_encoder):
     }
 
 
+def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
+
+    pixel_predictions = np.zeros(X_normalized.shape[:2] + (n_pixel_classes,))
+
+    output_names = get_output_names(model)
+    pixels_output_index = np.where(np.array(output_names) == PIXELS)[0][0]
+
+    n_predictions = np.zeros_like(pixel_predictions, dtype="uint8")
+
+    # Note: predicting on entire NAIP scene requires too much memory, so we cut the image into
+    # four parts (which may slightly overlap) and predict on each of them individually
+    prediction_width = image_shape[0] * (
+        ((X_normalized.shape[0] // image_shape[0]) // 2) + 1
+    )
+    prediction_height = image_shape[1] * (
+        ((X_normalized.shape[1] // image_shape[1]) // 2) + 1
+    )
+
+    # TODO Variables for slice indices, they're used in three places
+    X_normalized_top_left = X_normalized[
+        np.newaxis, :prediction_width, :prediction_height, :
+    ]
+    X_normalized_top_right = X_normalized[
+        np.newaxis, -prediction_width:, :prediction_height, :
+    ]
+    X_normalized_bottom_left = X_normalized[
+        np.newaxis, :prediction_width, -prediction_height:, :
+    ]
+    X_normalized_bottom_right = X_normalized[
+        np.newaxis, -prediction_width:, -prediction_height:, :
+    ]
+
+    model_predictions_top_left = model.predict(X_normalized_top_left)
+    model_predictions_top_right = model.predict(X_normalized_top_right)
+    model_predictions_bottom_left = model.predict(X_normalized_bottom_left)
+    model_predictions_bottom_right = model.predict(X_normalized_bottom_right)
+
+    pixel_predictions[
+        :prediction_width, :prediction_height, :
+    ] += model_predictions_top_left[pixels_output_index][0]
+    pixel_predictions[
+        -prediction_width:, :prediction_height, :
+    ] += model_predictions_top_right[pixels_output_index][0]
+    pixel_predictions[
+        :prediction_width, -prediction_height:, :
+    ] += model_predictions_bottom_left[pixels_output_index][0]
+    pixel_predictions[
+        -prediction_width:, -prediction_height:, :
+    ] += model_predictions_bottom_right[pixels_output_index][0]
+
+    n_predictions[:prediction_width, :prediction_height, :] += 1
+    n_predictions[-prediction_width:, :prediction_height, :] += 1
+    n_predictions[:prediction_width, -prediction_height:, :] += 1
+    n_predictions[-prediction_width:, -prediction_height:, :] += 1
+
+    has_predictions = np.where(n_predictions > 0)
+    pixel_predictions[has_predictions] = (
+        pixel_predictions[has_predictions] / n_predictions[has_predictions]
+    )
+
+    return pixel_predictions
+
+
 def predict_pixels_entire_scene(
     model, naip_path, X_mean_train, X_std_train, image_shape, label_encoder, colormap
 ):
@@ -53,26 +116,10 @@ def predict_pixels_entire_scene(
 
     # Predictions have shape (width, height, n_classes)
     n_pixel_classes = len(label_encoder.classes_)
-    pixel_predictions = np.zeros(X.shape[:2] + (n_pixel_classes,))
 
-    # TODO Predict on rest of scene
-    prediction_width = (image_shape[0] // 2) * (X_normalized.shape[0] // image_shape[0])
-    prediction_height = (image_shape[1] // 2) * (
-        X_normalized.shape[1] // image_shape[1]
+    pixel_predictions = get_pixel_predictions(
+        model, n_pixel_classes, X_normalized, image_shape
     )
-
-    X_normalized = X_normalized[
-        np.newaxis, :prediction_width, :prediction_height, :
-    ].copy()
-
-    model_predictions = model.predict(X_normalized)
-
-    output_names = get_output_names(model)
-    pixels_output_index = np.where(np.array(output_names) == PIXELS)[0][0]
-
-    pixel_predictions[:prediction_width, :prediction_height, :] = model_predictions[
-        pixels_output_index
-    ][0]
 
     profile["dtype"] = str(pixel_predictions.dtype)
     profile["count"] = n_pixel_classes
@@ -116,7 +163,7 @@ def load_X_mean_and_std_train(model_name):
     return np.load(infile_mean), np.load(infile_std)
 
 
-def main(model_name="./saved_models/cnn_land_cover_2019_11_10_02.h5"):
+def main(model_name="./saved_models/cnn_land_cover_2019_11_10_05.h5"):
 
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()
@@ -127,7 +174,9 @@ def main(model_name="./saved_models/cnn_land_cover_2019_11_10_02.h5"):
     )
 
     # Note: avoid ValueError: Unknown loss function:masked_categorical_crossentropy when loading saved model
-    get_custom_objects().update({"masked_categorical_crossentropy": masked_categorical_crossentropy})
+    get_custom_objects().update(
+        {"masked_categorical_crossentropy": masked_categorical_crossentropy}
+    )
 
     model = load_model(model_name)
 

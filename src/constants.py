@@ -35,7 +35,7 @@ ROAD_BUFFER_METERS_DEFAULT = 3.0
 ROAD_BUFFER_METERS = {"S1100": 5.0, "S1200": 5.0}
 
 # Note: roads are buffered by this amount in order to implement CDL developed masking logic
-ROAD_BUFFER_METERS_MASK = 25.0
+ROAD_BUFFER_METERS_MASK = 30.0
 
 HAS_BUILDINGS = "has_buildings"
 HAS_ROADS = "has_roads"
