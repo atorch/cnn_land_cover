@@ -1,5 +1,5 @@
 import numpy as np
-from keras.utils.np_utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 from scipy import stats
 
 from cnn import HAS_BUILDINGS, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER, PIXELS

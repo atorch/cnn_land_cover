@@ -1,9 +1,9 @@
 from functools import partial
 
-import keras
-from keras import backend as K
-from keras.models import Model
-from keras.layers import (
+from tensorflow.keras import losses, optimizers
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
     BatchNormalization,
     Conv2D,
     Dense,
@@ -68,26 +68,6 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
     return BatchNormalization()(conv2)
 
 
-def get_masked_categorical_crossentropy(cdl_indices_to_mask):
-    def masked_categorical_crossentropy(y_true, y_pred):
-
-        # Used for pixel classifications: mask pixels whose class is in cdl_indices_to_mask
-        # Note: shapes are (batch, image_shape, image_shape, n_classes)
-        # TODO Speed this up, test it
-
-        mask = K.ones_like(y_true[:, :, :, 0])
-
-        for cdl_index in cdl_indices_to_mask:
-            cdl_index_indicators = K.cast(
-                K.equal(y_true[:, :, :, cdl_index], 1), "float32"
-            )
-            mask -= cdl_index_indicators
-
-        return K.categorical_crossentropy(y_true, y_pred) * mask
-
-    return masked_categorical_crossentropy
-
-
 def get_keras_model(image_shape, label_encoder):
 
     # Note: model is fully convolutional, so image width and height can be arbitrary
@@ -139,21 +119,19 @@ def get_keras_model(image_shape, label_encoder):
 
     print(model.summary())
 
-    nadam = keras.optimizers.Nadam()
+    nadam = optimizers.Nadam()
 
+    # TODO Unused, reimplement this?
     cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
-    masked_categorical_crossentropy = get_masked_categorical_crossentropy(
-        cdl_indices_to_mask
-    )
 
     model.compile(
         optimizer=nadam,
         loss={
-            HAS_BUILDINGS: keras.losses.binary_crossentropy,
-            HAS_ROADS: keras.losses.binary_crossentropy,
-            IS_MAJORITY_FOREST: keras.losses.binary_crossentropy,
-            MODAL_LAND_COVER: keras.losses.categorical_crossentropy,
-            PIXELS: masked_categorical_crossentropy,
+            HAS_BUILDINGS: losses.binary_crossentropy,
+            HAS_ROADS: losses.binary_crossentropy,
+            IS_MAJORITY_FOREST: losses.binary_crossentropy,
+            MODAL_LAND_COVER: losses.categorical_crossentropy,
+            PIXELS: losses.categorical_crossentropy,
         },
         metrics=["accuracy"],
     )

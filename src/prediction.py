@@ -1,11 +1,11 @@
 import os
 
-from keras.models import load_model
-from keras.utils.generic_utils import get_custom_objects
+from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import get_custom_objects
 import numpy as np
 import rasterio
 
-from cnn import PIXELS, get_output_names, get_masked_categorical_crossentropy
+from cnn import PIXELS, get_output_names
 from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG
 from normalization import get_X_normalized
 from utils import get_config, get_label_encoder_and_mapping
@@ -167,16 +167,6 @@ def main(model_name="./saved_models/cnn_land_cover_2019_11_10_05.h5"):
 
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()
-
-    cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
-    masked_categorical_crossentropy = get_masked_categorical_crossentropy(
-        cdl_indices_to_mask
-    )
-
-    # Note: avoid ValueError: Unknown loss function:masked_categorical_crossentropy when loading saved model
-    get_custom_objects().update(
-        {"masked_categorical_crossentropy": masked_categorical_crossentropy}
-    )
 
     model = load_model(model_name)
 
