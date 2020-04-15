@@ -359,7 +359,7 @@ def main():
     test_generator = get_generator(
         test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
     )
-    test_X, test_y = next(test_generator)
+    test_X, test_y, test_weights = next(test_generator)
 
     # TODO Show test set loss for each objective
     # Also fit some simple basline models (null model, regression
