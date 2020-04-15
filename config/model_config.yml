@@ -48,4 +48,4 @@ test_scenes:
   - ./naip/m_4309101_sw_15_1_20171016.tif
   - ./naip/m_4009048_se_15_1_20170725.tif
 
-# TODO Model hyperparams here
+# TODO Put model hyperparams here

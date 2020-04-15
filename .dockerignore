@@ -5,6 +5,7 @@ cdl_annotations/*
 county/*
 naip/*
 predictions/*
+predictions_without_masking/*
 road_annotations/*
 road_annotations_for_mask/*
 roads/*

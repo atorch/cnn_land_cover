@@ -7,9 +7,8 @@
 ```
 
 ```bash
-export LAND_COVER_DOCKER_TAG=cnn_land_cover_docker
-sudo docker build ~/cnn_land_cover --tag=$LAND_COVER_DOCKER_TAG
-sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover $LAND_COVER_DOCKER_TAG bash
+sudo docker build ~/cnn_land_cover --tag=cnn_land_cover_docker
+sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
 cd /home/cnn_land_cover
 python src/annotate_naip_scenes.py
 python src/fit_model.py

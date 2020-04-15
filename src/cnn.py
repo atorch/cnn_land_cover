@@ -12,6 +12,7 @@ from tensorflow.keras.layers import (
     GlobalAveragePooling2D,
     Input,
     MaxPooling2D,
+    Reshape,
     UpSampling2D,
     concatenate,
 )
@@ -102,9 +103,15 @@ def get_keras_model(image_shape, label_encoder):
             current_last_layer, index, downsampling_conv2_layers
         )
 
-    output_pixels = Conv2D(n_classes, 1, activation="softmax", name=PIXELS)(
+    # TODO Give this a name so that it can be the final layer when predicting?
+    pixels_final_conv = Conv2D(n_classes, 1, activation="softmax")(
         current_last_layer
     )
+
+    # TODO Remove this final layer when predicting
+    # Note: we are reshaping so that we can use weights with sample_weight_mode temporal
+    # See https://github.com/keras-team/keras/issues/3653#issuecomment-557844450
+    output_pixels = Reshape((image_shape[0] * image_shape[1], n_classes), name=PIXELS)(pixels_final_conv)
 
     model = Model(
         inputs=input_layer,
@@ -121,7 +128,6 @@ def get_keras_model(image_shape, label_encoder):
 
     nadam = optimizers.Nadam()
 
-    # TODO Unused, reimplement this?
     cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
 
     model.compile(
@@ -132,6 +138,13 @@ def get_keras_model(image_shape, label_encoder):
             IS_MAJORITY_FOREST: losses.binary_crossentropy,
             MODAL_LAND_COVER: losses.categorical_crossentropy,
             PIXELS: losses.categorical_crossentropy,
+        },
+        sample_weight_mode={
+            HAS_BUILDINGS: None,
+            HAS_ROADS: None,
+            IS_MAJORITY_FOREST: None,
+            MODAL_LAND_COVER: None,
+            PIXELS: "temporal",
         },
         metrics=["accuracy"],
     )
