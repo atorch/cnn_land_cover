@@ -18,7 +18,7 @@ from cnn import (
     HAS_ROADS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
-    PIXELS,
+    PIXELS_RESHAPED,
 )
 from constants import (
     BUILDING_ANNOTATION_DIR,
@@ -211,8 +211,8 @@ def fit_model(config, label_encoder, cdl_mapping):
     # TODO Tensorboard
     history = model.fit(
         x=training_generator,
-        steps_per_epoch=50,
-        epochs=100,
+        steps_per_epoch=2,  # TODO 50
+        epochs=1,  # TODO
         verbose=True,
         # TODO EarlyStopping val_loss is not available warning
         callbacks=[
@@ -277,7 +277,7 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
                 name, y_pred, y_true, cdl_indices_to_mask, label_encoder
             )
 
-        elif name == PIXELS:
+        elif name == PIXELS_RESHAPED:
 
             y_pred = test_predictions[index].argmax(axis=-1).flatten()
             y_true = test_y[name].argmax(axis=-1).flatten()
@@ -346,6 +346,7 @@ def main():
 
     print(f"Saving model to {model_name}")
     model.save(model_name)
+    # TODO Use save_weights instead?
 
     # TODO Also save label encoder?
     save_X_mean_and_std_train(X_mean_train, X_std_train, model_name)
@@ -370,10 +371,16 @@ def main():
     colormap = get_colormap(label_encoder)
     print(f"Colormap used for predictions: {colormap}")
 
+    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
+
+    # Note: we load weights by name because the two models have slightly different architectures
+    #  (this model doesn't include the final reshape which was needed only for temporal sample weights when training)
+    model_without_reshape.load_weights(model_name, by_name=True)
+
     for test_scene in config["test_scenes"]:
 
         predict_pixels_entire_scene(
-            model,
+            model_without_reshape,
             test_scene,
             X_mean_train,
             X_std_train,

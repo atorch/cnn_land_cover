@@ -2,13 +2,11 @@ import numpy as np
 from tensorflow.keras.utils import to_categorical
 from scipy import stats
 
-from cnn import HAS_BUILDINGS, HAS_ROADS, IS_MAJORITY_FOREST, MODAL_LAND_COVER, PIXELS
-
 from constants import (
     CDL_CLASSES_TO_MASK,
     HAS_BUILDINGS,
     HAS_ROADS,
-    PIXELS,
+    PIXELS_RESHAPED,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
 )
@@ -49,7 +47,7 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
             batch_forest[batch_index] = labels[IS_MAJORITY_FOREST]
             batch_has_buildings[batch_index] = labels[HAS_BUILDINGS]
             batch_has_roads[batch_index] = labels[HAS_ROADS]
-            batch_pixels[batch_index] = labels[PIXELS]
+            batch_pixels[batch_index] = labels[PIXELS_RESHAPED]
 
             # Note: this one-hot encodes land cover (array was initialized to np.zeros)
             land_cover = labels[MODAL_LAND_COVER]
@@ -72,14 +70,14 @@ def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
                 HAS_ROADS: batch_has_roads,
                 IS_MAJORITY_FOREST: batch_forest,
                 MODAL_LAND_COVER: batch_land_cover,
-                PIXELS: batch_pixels,
+                PIXELS_RESHAPED: batch_pixels,
             },
             {
                 HAS_BUILDINGS: batch_has_buildings_weights,
                 HAS_ROADS: batch_has_roads_weights,
                 IS_MAJORITY_FOREST: batch_forest_weights,
                 MODAL_LAND_COVER: batch_land_cover_weights,
-                PIXELS: batch_pixel_weights,
+                PIXELS_RESHAPED: batch_pixel_weights,
             }
         )
 
@@ -121,7 +119,7 @@ def get_random_patch(annotated_scene, image_shape, label_encoder):
         HAS_ROADS: has_roads,
         IS_MAJORITY_FOREST: is_majority_forest,
         MODAL_LAND_COVER: modal_land_cover,
-        PIXELS: pixels,
+        PIXELS_RESHAPED: pixels,
     }
 
     return naip_patch, labels

@@ -5,8 +5,8 @@ from tensorflow.keras.utils import get_custom_objects
 import numpy as np
 import rasterio
 
-from cnn import PIXELS, get_output_names
-from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG
+from cnn import get_output_names
+from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG, PIXELS
 from normalization import get_X_normalized
 from utils import get_config, get_label_encoder_and_mapping
 
@@ -42,7 +42,9 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
     pixel_predictions = np.zeros(X_normalized.shape[:2] + (n_pixel_classes,))
 
     output_names = get_output_names(model)
-    pixels_output_index = np.where(np.array(output_names) == PIXELS)[0][0]
+
+    # Note: the output names have suffixes because of multiple calls to get_keras_model
+    pixels_output_index = np.where([o.startswith(PIXELS) for o in output_names])[0][0]
 
     n_predictions = np.zeros_like(pixel_predictions, dtype="uint8")
 

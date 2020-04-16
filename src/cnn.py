@@ -22,6 +22,7 @@ from constants import (
     HAS_BUILDINGS,
     HAS_ROADS,
     PIXELS,
+    PIXELS_RESHAPED,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
 )
@@ -69,9 +70,9 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
     return BatchNormalization()(conv2)
 
 
-def get_keras_model(image_shape, label_encoder):
+def get_keras_model(image_shape, label_encoder, include_reshape=True):
 
-    # Note: model is fully convolutional, so image width and height can be arbitrary
+    # Note: the model is fully convolutional: the input image width and height can be arbitrary
     input_layer = Input(shape=(None, None, image_shape[2]))
 
     # Note: Keep track of conv2 layers so that they can be connected to the upsampling blocks
@@ -103,15 +104,22 @@ def get_keras_model(image_shape, label_encoder):
             current_last_layer, index, downsampling_conv2_layers
         )
 
-    # TODO Give this a name so that it can be the final layer when predicting?
-    pixels_final_conv = Conv2D(n_classes, 1, activation="softmax")(
+    pixels_final_conv = Conv2D(n_classes, 1, activation="softmax", name=PIXELS)(
         current_last_layer
     )
 
-    # TODO Remove this final layer when predicting
-    # Note: we are reshaping so that we can use weights with sample_weight_mode temporal
-    # See https://github.com/keras-team/keras/issues/3653#issuecomment-557844450
-    output_pixels = Reshape((image_shape[0] * image_shape[1], n_classes), name=PIXELS)(pixels_final_conv)
+    if include_reshape:
+
+        # Note: we are reshaping so that we can use weights with sample_weight_mode temporal when training
+        #  See https://github.com/keras-team/keras/issues/3653#issuecomment-557844450
+        #  The model is **not** fully convolutional when include_reshape is True
+        output_pixels = Reshape((image_shape[0] * image_shape[1], n_classes), name=PIXELS_RESHAPED)(pixels_final_conv)
+        output_pixels_name = PIXELS_RESHAPED
+
+    else:
+
+        output_pixels = pixels_final_conv
+        output_pixels_name = PIXELS
 
     model = Model(
         inputs=input_layer,
@@ -137,14 +145,14 @@ def get_keras_model(image_shape, label_encoder):
             HAS_ROADS: losses.binary_crossentropy,
             IS_MAJORITY_FOREST: losses.binary_crossentropy,
             MODAL_LAND_COVER: losses.categorical_crossentropy,
-            PIXELS: losses.categorical_crossentropy,
+            output_pixels_name: losses.categorical_crossentropy,
         },
         sample_weight_mode={
             HAS_BUILDINGS: None,
             HAS_ROADS: None,
             IS_MAJORITY_FOREST: None,
             MODAL_LAND_COVER: None,
-            PIXELS: "temporal",
+            output_pixels_name: "temporal",
         },
         metrics=["accuracy"],
     )
