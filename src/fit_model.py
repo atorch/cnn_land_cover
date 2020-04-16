@@ -211,8 +211,8 @@ def fit_model(config, label_encoder, cdl_mapping):
     # TODO Tensorboard
     history = model.fit(
         x=training_generator,
-        steps_per_epoch=2,  # TODO 50
-        epochs=1,  # TODO
+        steps_per_epoch=50,
+        epochs=100,
         verbose=True,
         # TODO EarlyStopping val_loss is not available warning
         callbacks=[

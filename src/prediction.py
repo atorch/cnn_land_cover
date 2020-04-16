@@ -48,8 +48,9 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
 
     n_predictions = np.zeros_like(pixel_predictions, dtype="uint8")
 
-    # Note: predicting on entire NAIP scene requires too much memory, so we cut the image into
-    # four parts (which may slightly overlap) and predict on each of them individually
+    # Note: The model is fully convolutional, so we could in theory predict on images of any size,
+    #  subject to memory constraints. Predicting on entire NAIP scene requires too much memory,
+    #  so we cut the image into four parts (which may slightly overlap) and predict on each part individually
     prediction_width = image_shape[0] * (
         ((X_normalized.shape[0] // image_shape[0]) // 2) + 1
     )
