@@ -5,7 +5,7 @@ from tensorflow.keras.utils import get_custom_objects
 import numpy as np
 import rasterio
 
-from cnn import get_output_names
+from cnn import get_output_names, get_keras_model
 from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG, PIXELS
 from normalization import get_X_normalized
 from utils import get_config, get_label_encoder_and_mapping
@@ -166,21 +166,26 @@ def load_X_mean_and_std_train(model_name):
     return np.load(infile_mean), np.load(infile_std)
 
 
-def main(model_name="./saved_models/cnn_land_cover_2020_03_22_01.h5"):
+def main(model_name="./saved_models/cnn_land_cover_2020_04_16_00.h5"):
 
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()
 
-    model = load_model(model_name)
+    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
+
+    # Note: we load weights by name because the two models have slightly different architectures
+    #  (this model doesn't include the final reshape which was needed only for temporal sample weights when training)
+    model_without_reshape.load_weights(model_name, by_name=True)
 
     X_mean_train, X_std_train = load_X_mean_and_std_train(model_name)
 
     colormap = get_colormap(label_encoder)
+    print(f"Colormap used for predictions: {colormap}")
 
     for test_scene in config["test_scenes"]:
 
         predict_pixels_entire_scene(
-            model,
+            model_without_reshape,
             test_scene,
             X_mean_train,
             X_std_train,

@@ -346,7 +346,6 @@ def main():
 
     print(f"Saving model to {model_name}")
     model.save(model_name)
-    # TODO Use save_weights instead?
 
     # TODO Also save label encoder?
     save_X_mean_and_std_train(X_mean_train, X_std_train, model_name)
@@ -363,31 +362,10 @@ def main():
     test_X, test_y, test_weights = next(test_generator)
 
     # TODO Show test set loss for each objective
-    # Also fit some simple basline models (null model, regression
+    # Also fit some simple baseline models (null model, regression
     #  tree that only sees average for each band in the image, nearest neighbors...),
     #  compute their test set loss and show on a plot with CNN test loss
     print_classification_reports(test_X, test_y, model, label_encoder)
-
-    colormap = get_colormap(label_encoder)
-    print(f"Colormap used for predictions: {colormap}")
-
-    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
-
-    # Note: we load weights by name because the two models have slightly different architectures
-    #  (this model doesn't include the final reshape which was needed only for temporal sample weights when training)
-    model_without_reshape.load_weights(model_name, by_name=True)
-
-    for test_scene in config["test_scenes"]:
-
-        predict_pixels_entire_scene(
-            model_without_reshape,
-            test_scene,
-            X_mean_train,
-            X_std_train,
-            IMAGE_SHAPE,
-            label_encoder,
-            colormap,
-        )
 
 
 if __name__ == "__main__":
