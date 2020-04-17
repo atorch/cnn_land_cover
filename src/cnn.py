@@ -1,9 +1,9 @@
 from functools import partial
 
-import keras
-from keras import backend as K
-from keras.models import Model
-from keras.layers import (
+from tensorflow.keras import losses, optimizers
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
     BatchNormalization,
     Conv2D,
     Dense,
@@ -12,6 +12,7 @@ from keras.layers import (
     GlobalAveragePooling2D,
     Input,
     MaxPooling2D,
+    Reshape,
     UpSampling2D,
     concatenate,
 )
@@ -21,6 +22,7 @@ from constants import (
     HAS_BUILDINGS,
     HAS_ROADS,
     PIXELS,
+    PIXELS_RESHAPED,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
 )
@@ -68,29 +70,9 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
     return BatchNormalization()(conv2)
 
 
-def get_masked_categorical_crossentropy(cdl_indices_to_mask):
-    def masked_categorical_crossentropy(y_true, y_pred):
+def get_keras_model(image_shape, label_encoder, include_reshape=True):
 
-        # Used for pixel classifications: mask pixels whose class is in cdl_indices_to_mask
-        # Note: shapes are (batch, image_shape, image_shape, n_classes)
-        # TODO Speed this up, test it
-
-        mask = K.ones_like(y_true[:, :, :, 0])
-
-        for cdl_index in cdl_indices_to_mask:
-            cdl_index_indicators = K.cast(
-                K.equal(y_true[:, :, :, cdl_index], 1), "float32"
-            )
-            mask -= cdl_index_indicators
-
-        return K.categorical_crossentropy(y_true, y_pred) * mask
-
-    return masked_categorical_crossentropy
-
-
-def get_keras_model(image_shape, label_encoder):
-
-    # Note: model is fully convolutional, so image width and height can be arbitrary
+    # Note: the model is fully convolutional: the input image width and height can be arbitrary
     input_layer = Input(shape=(None, None, image_shape[2]))
 
     # Note: Keep track of conv2 layers so that they can be connected to the upsampling blocks
@@ -122,9 +104,22 @@ def get_keras_model(image_shape, label_encoder):
             current_last_layer, index, downsampling_conv2_layers
         )
 
-    output_pixels = Conv2D(n_classes, 1, activation="softmax", name=PIXELS)(
+    pixels_final_conv = Conv2D(n_classes, 1, activation="softmax", name=PIXELS)(
         current_last_layer
     )
+
+    if include_reshape:
+
+        # Note: we are reshaping so that we can use weights with sample_weight_mode temporal when training
+        #  See https://github.com/keras-team/keras/issues/3653#issuecomment-557844450
+        #  The model is **not** fully convolutional when include_reshape is True
+        output_pixels = Reshape((image_shape[0] * image_shape[1], n_classes), name=PIXELS_RESHAPED)(pixels_final_conv)
+        output_pixels_name = PIXELS_RESHAPED
+
+    else:
+
+        output_pixels = pixels_final_conv
+        output_pixels_name = PIXELS
 
     model = Model(
         inputs=input_layer,
@@ -139,21 +134,25 @@ def get_keras_model(image_shape, label_encoder):
 
     print(model.summary())
 
-    nadam = keras.optimizers.Nadam()
+    nadam = optimizers.Nadam()
 
     cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
-    masked_categorical_crossentropy = get_masked_categorical_crossentropy(
-        cdl_indices_to_mask
-    )
 
     model.compile(
         optimizer=nadam,
         loss={
-            HAS_BUILDINGS: keras.losses.binary_crossentropy,
-            HAS_ROADS: keras.losses.binary_crossentropy,
-            IS_MAJORITY_FOREST: keras.losses.binary_crossentropy,
-            MODAL_LAND_COVER: keras.losses.categorical_crossentropy,
-            PIXELS: masked_categorical_crossentropy,
+            HAS_BUILDINGS: losses.binary_crossentropy,
+            HAS_ROADS: losses.binary_crossentropy,
+            IS_MAJORITY_FOREST: losses.binary_crossentropy,
+            MODAL_LAND_COVER: losses.categorical_crossentropy,
+            output_pixels_name: losses.categorical_crossentropy,
+        },
+        sample_weight_mode={
+            HAS_BUILDINGS: None,
+            HAS_ROADS: None,
+            IS_MAJORITY_FOREST: None,
+            MODAL_LAND_COVER: None,
+            output_pixels_name: "temporal",
         },
         metrics=["accuracy"],
     )

@@ -31,8 +31,8 @@ ROAD_FORMAT = "tl_2017_{county}_roads.shp"
 
 # Note: buffering is applied after projecting road shapes into NAIP's CRS
 # For road type definitions, see https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2009/TGRSHP09AF.pdf
-ROAD_BUFFER_METERS_DEFAULT = 3.0
-ROAD_BUFFER_METERS = {"S1100": 5.0, "S1200": 5.0}
+ROAD_BUFFER_METERS_DEFAULT = 4.0
+ROAD_BUFFER_METERS = {"S1100": 6.0, "S1200": 6.0, "S1630": 6.0}
 
 # Note: roads are buffered by this amount in order to implement CDL developed masking logic
 ROAD_BUFFER_METERS_MASK = 30.0
@@ -42,3 +42,4 @@ HAS_ROADS = "has_roads"
 IS_MAJORITY_FOREST = "is_majority_forest"
 MODAL_LAND_COVER = "modal_land_cover"
 PIXELS = "pixels"
+PIXELS_RESHAPED = "pixels_reshaped"

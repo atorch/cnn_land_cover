@@ -1,12 +1,12 @@
 import os
 
-from keras.models import load_model
-from keras.utils.generic_utils import get_custom_objects
+from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import get_custom_objects
 import numpy as np
 import rasterio
 
-from cnn import PIXELS, get_output_names, get_masked_categorical_crossentropy
-from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG
+from cnn import get_output_names, get_keras_model
+from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG, PIXELS
 from normalization import get_X_normalized
 from utils import get_config, get_label_encoder_and_mapping
 
@@ -42,12 +42,15 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
     pixel_predictions = np.zeros(X_normalized.shape[:2] + (n_pixel_classes,))
 
     output_names = get_output_names(model)
-    pixels_output_index = np.where(np.array(output_names) == PIXELS)[0][0]
+
+    # Note: the output names have suffixes because of multiple calls to get_keras_model
+    pixels_output_index = np.where([o.startswith(PIXELS) for o in output_names])[0][0]
 
     n_predictions = np.zeros_like(pixel_predictions, dtype="uint8")
 
-    # Note: predicting on entire NAIP scene requires too much memory, so we cut the image into
-    # four parts (which may slightly overlap) and predict on each of them individually
+    # Note: The model is fully convolutional, so we could in theory predict on images of any size,
+    #  subject to memory constraints. Predicting on entire NAIP scene requires too much memory,
+    #  so we cut the image into four parts (which may slightly overlap) and predict on each part individually
     prediction_width = image_shape[0] * (
         ((X_normalized.shape[0] // image_shape[0]) // 2) + 1
     )
@@ -163,31 +166,26 @@ def load_X_mean_and_std_train(model_name):
     return np.load(infile_mean), np.load(infile_std)
 
 
-def main(model_name="./saved_models/cnn_land_cover_2019_11_10_05.h5"):
+def main(model_name="./saved_models/cnn_land_cover_2020_04_17_01.h5"):
 
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()
 
-    cdl_indices_to_mask = label_encoder.transform(CDL_CLASSES_TO_MASK)
-    masked_categorical_crossentropy = get_masked_categorical_crossentropy(
-        cdl_indices_to_mask
-    )
+    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
 
-    # Note: avoid ValueError: Unknown loss function:masked_categorical_crossentropy when loading saved model
-    get_custom_objects().update(
-        {"masked_categorical_crossentropy": masked_categorical_crossentropy}
-    )
-
-    model = load_model(model_name)
+    # Note: we load weights by name because the two models have slightly different architectures
+    #  (this model doesn't include the final reshape which was needed only for temporal sample weights when training)
+    model_without_reshape.load_weights(model_name, by_name=True)
 
     X_mean_train, X_std_train = load_X_mean_and_std_train(model_name)
 
     colormap = get_colormap(label_encoder)
+    print(f"Colormap used for predictions: {colormap}")
 
     for test_scene in config["test_scenes"]:
 
         predict_pixels_entire_scene(
-            model,
+            model_without_reshape,
             test_scene,
             X_mean_train,
             X_std_train,

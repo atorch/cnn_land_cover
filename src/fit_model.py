@@ -3,9 +3,8 @@ import datetime as dt
 import json
 import os
 
-import keras
-from keras import callbacks
-from keras.utils import plot_model
+from tensorflow.keras import callbacks
+from tensorflow.keras.utils import plot_model
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
@@ -19,7 +18,7 @@ from cnn import (
     HAS_ROADS,
     IS_MAJORITY_FOREST,
     MODAL_LAND_COVER,
-    PIXELS,
+    PIXELS_RESHAPED,
 )
 from constants import (
     BUILDING_ANNOTATION_DIR,
@@ -209,23 +208,18 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     validation_generator = get_generator(validation_scenes, label_encoder, IMAGE_SHAPE)
 
-    # TODO Also use class_weight when computing test accuracy stats
-    # TODO Doesn't work for pixels, see https://github.com/keras-team/keras/issues/3653
-    class_weight = get_class_weight(label_encoder)
-    print(f"Class weights used in training: {class_weight}")
-
     # TODO Tensorboard
-    history = model.fit_generator(
-        generator=training_generator,
+    history = model.fit(
+        x=training_generator,
         steps_per_epoch=50,
         epochs=100,
         verbose=True,
+        # TODO EarlyStopping val_loss is not available warning
         callbacks=[
             callbacks.EarlyStopping(
                 patience=20, monitor="val_loss", restore_best_weights=True, verbose=True
             )
         ],
-        class_weight=class_weight,
         validation_data=validation_generator,
         validation_steps=10,
     )
@@ -283,7 +277,7 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
                 name, y_pred, y_true, cdl_indices_to_mask, label_encoder
             )
 
-        elif name == PIXELS:
+        elif name == PIXELS_RESHAPED:
 
             y_pred = test_predictions[index].argmax(axis=-1).flatten()
             y_true = test_y[name].argmax(axis=-1).flatten()
@@ -322,19 +316,6 @@ def print_classification_reports(test_X, test_y, model, label_encoder):
                     y_pred=test_predictions[index], y_true=test_y[name]
                 )
             )
-
-
-def get_class_weight(label_encoder):
-
-    # Note: using the same class weights for pixel classifications is tricky and requires a custom loss fn
-    # See https://github.com/keras-team/keras/issues/3653
-
-    return {
-        MODAL_LAND_COVER: {
-            label_encoder.transform([c])[0]: 0.0 if c in CDL_CLASSES_TO_MASK else 1.0
-            for c in label_encoder.classes_
-        }
-    }
 
 
 def get_model_name():
@@ -378,24 +359,13 @@ def main():
     test_generator = get_generator(
         test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
     )
-    test_X, test_y = next(test_generator)
+    test_X, test_y, test_weights = next(test_generator)
 
+    # TODO Show test set loss for each objective
+    # Also fit some simple baseline models (null model, regression
+    #  tree that only sees average for each band in the image, nearest neighbors...),
+    #  compute their test set loss and show on a plot with CNN test loss
     print_classification_reports(test_X, test_y, model, label_encoder)
-
-    colormap = get_colormap(label_encoder)
-    print(f"Colormap used for predictions: {colormap}")
-
-    for test_scene in config["test_scenes"]:
-
-        predict_pixels_entire_scene(
-            model,
-            test_scene,
-            X_mean_train,
-            X_std_train,
-            IMAGE_SHAPE,
-            label_encoder,
-            colormap,
-        )
 
 
 if __name__ == "__main__":
