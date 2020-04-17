@@ -11,6 +11,7 @@ road_annotations_for_mask/*
 roads/*
 sample_images/*
 saved_models/*
+screenshots/*
 tl_2018_us_state/*
 qgis_project.qgz
 *npy

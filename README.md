@@ -1,5 +1,11 @@
 # CNN for Land Cover
 
+This repo trains a model that predicts [land cover](https://en.wikipedia.org/wiki/Land_cover)
+using satellite imagery. The inputs to the model look like [this](screenshots/test_set_prediction_screenshot_naip.png),
+and the predictions look like [this](screenshots/test_set_prediction_screenshot_opaque.png).
+
+# Running the code
+
 ```bash
 ./scripts/download_buildings.sh
 ./scripts/download_cdl.sh
@@ -28,11 +34,13 @@ python src/fit_model.py
 
 [Census TIGER Shapefiles](https://www.census.gov/geo/maps-data/data/tiger-line.html) (roads and counties)
 
-[Cropland Data Layer](https://www.nass.usda.gov/Research_and_Science/Cropland/Release/) (land cover raster, visualize it [here](https://nassgeodata.gmu.edu/CropScape/))
+[Cropland Data Layer](https://www.nass.usda.gov/Research_and_Science/Cropland/Release/)
+(land cover raster, visualize it [here](https://nassgeodata.gmu.edu/CropScape/))
 
 [Microsoft building footprints](https://github.com/microsoft/USBuildingFootprints)
 
-[National Agriculture Imagery Program](https://www.fsa.usda.gov/programs-and-services/aerial-photography/imagery-programs/naip-imagery/) (four-band aerial imagery, originally downloaded from [USGS Earth Explorer](https://earthexplorer.usgs.gov/?))
+[National Agriculture Imagery Program](https://www.fsa.usda.gov/programs-and-services/aerial-photography/imagery-programs/naip-imagery/)
+(NAIP four-band aerial imagery, originally downloaded from [USGS Earth Explorer](https://earthexplorer.usgs.gov/?))
 
 The Cropland Data Layer (CDL) and TIGER road shapefiles are used to programmatically generate
 labels for NAIP images. See [sample_images](sample_images) for sample input images along
@@ -107,7 +115,3 @@ Classification report for pixels:
    macro avg       0.62      0.59      0.59  39321600
 weighted avg       0.68      0.64      0.65  39321600
 ```
-
-# Visualization
-
-TODO Visualizations of predictions on test scenes
