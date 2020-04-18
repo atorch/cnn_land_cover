@@ -166,7 +166,7 @@ def load_X_mean_and_std_train(model_name):
     return np.load(infile_mean), np.load(infile_std)
 
 
-def main(model_name="./saved_models/cnn_land_cover_2020_04_17_01.h5"):
+def main(model_name="./saved_models/cnn_land_cover_2020_04_18_01.h5"):
 
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()

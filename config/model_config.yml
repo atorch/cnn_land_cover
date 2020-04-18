@@ -20,18 +20,21 @@ training_scenes:
   - ./naip/m_4208943_se_16_1_20170823.tif
   - ./naip/m_4209047_sw_15_1_20170823.tif
   - ./naip/m_4109221_nw_15_1_20170914.tif
+  - ./naip/m_4209341_nw_15_1_20170701.tif
+  - ./naip/m_4108802_ne_16_1_20170702.tif
 validation_scenes:
   - ./naip/m_4609334_se_15_1_20170715.tif
   - ./naip/m_4009122_sw_15_1_20170809.tif
   - ./naip/m_4109328_ne_15_1_20170701.tif
   - ./naip/m_4209342_nw_15_1_20170701.tif
-  - ./naip/m_4209341_nw_15_1_20170701.tif
   - ./naip/m_4609346_ne_15_1_20170921.tif
   - ./naip/m_4609253_se_15_1_20171016.tif
   - ./naip/m_4309204_nw_15_1_20171016.tif
   - ./naip/m_4309115_sw_15_1_20171016.tif
   - ./naip/m_4108905_ne_16_1_20170805.tif
   - ./naip/m_4208941_se_16_1_20170823.tif
+  - ./naip/m_4208856_sw_16_1_20170903.tif
+  - ./naip/m_4108828_ne_16_1_20170702.tif
 test_scenes:
   - ./naip/m_4109232_sw_15_1_20170908.tif
   - ./naip/m_4109137_ne_15_1_20170823.tif
@@ -47,5 +50,8 @@ test_scenes:
   - ./naip/m_4108802_se_16_1_20170702.tif
   - ./naip/m_4309101_sw_15_1_20171016.tif
   - ./naip/m_4009048_se_15_1_20170725.tif
+  - ./naip/m_4208855_sw_16_1_20170901.tif
+  - ./naip/m_4109030_nw_15_1_20170627.tif
+  - ./naip/m_4108820_ne_16_1_20170702.tif
 
 # TODO Put model hyperparams here

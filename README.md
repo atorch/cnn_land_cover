@@ -1,7 +1,8 @@
 # CNN for Land Cover
 
 This repo trains a model that predicts [land cover](https://en.wikipedia.org/wiki/Land_cover)
-using satellite imagery. The inputs to the model look like [this](screenshots/test_set_prediction_screenshot_naip.png),
+using aerial imagery. This is a [semantic segmentation](https://www.youtube.com/watch?v=nDPWywWRIRo) task:
+the inputs to the model look like [this](screenshots/test_set_prediction_screenshot_naip.png),
 and the predictions look like [this](screenshots/test_set_prediction_screenshot_opaque.png).
 See [here](screenshots/test_set_prediction_screenshot_partially_transparent.png)
 for an image showing both the input and the predictions.
@@ -21,6 +22,7 @@ forests are green, roads are dark grey, and water is blue.
 sudo docker build ~/cnn_land_cover --tag=cnn_land_cover_docker
 sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
 cd /home/cnn_land_cover
+python src/save_building_shapefiles.py
 python src/annotate_naip_scenes.py
 python src/fit_model.py
 ```
