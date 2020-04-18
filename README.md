@@ -6,7 +6,7 @@ the inputs to the model look like [this](screenshots/test_set_prediction_screens
 and the predictions look like [this](screenshots/test_set_prediction_screenshot_opaque.png).
 See [here](screenshots/test_set_prediction_screenshot_partially_transparent.png)
 for an image showing both the input and the predictions.
-These screenshots were taken from a scene in the model's [test set](config/model_config.yml#L36).
+These screenshots were taken from a scene in the model's [test set](config/model_config.yml#L39).
 Each color in the predictions corresponds to a land cover class:
 forests are green, roads are dark grey, and water is blue.
 
