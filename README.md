@@ -20,7 +20,7 @@ forests are green, roads are dark grey, and water is blue.
 
 ```bash
 sudo docker build ~/cnn_land_cover --tag=cnn_land_cover_docker
-sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
+sudo docker run --gpus all -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
 cd /home/cnn_land_cover
 python src/save_building_shapefiles.py
 python src/annotate_naip_scenes.py
@@ -32,7 +32,6 @@ python src/fit_model.py
 * [ ] Download script for the NAIP scenes in [model_config.yml](config/model_config.yml)
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
-* [ ] GPU
 * [ ] Tensorboard
 * [ ] Tune dropout probability, number of filters, number of blocks
 * [ ] Visualizations, including gradients

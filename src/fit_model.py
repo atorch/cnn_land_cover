@@ -195,7 +195,7 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     # plot_model(model, to_file='model.png')
 
-    training_generator = get_generator(training_scenes, label_encoder, IMAGE_SHAPE)
+    training_generator = get_generator(training_scenes, label_encoder, IMAGE_SHAPE, batch_size=10)
 
     sample_batch = next(training_generator)
 
@@ -206,7 +206,7 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder)
 
-    validation_generator = get_generator(validation_scenes, label_encoder, IMAGE_SHAPE)
+    validation_generator = get_generator(validation_scenes, label_encoder, IMAGE_SHAPE, batch_size=10)
 
     # TODO Tensorboard
     history = model.fit(
