@@ -215,17 +215,16 @@ def fit_model(config, label_encoder, cdl_mapping):
     # TODO Tensorboard
     history = model.fit(
         x=training_generator,
-        steps_per_epoch=50,
+        steps_per_epoch=100,
         epochs=200,
         verbose=True,
-        # TODO EarlyStopping val_loss is not available warning
         callbacks=[
             callbacks.EarlyStopping(
-                patience=40, monitor="val_loss", restore_best_weights=True, verbose=True
+                patience=20, monitor="val_loss", restore_best_weights=True, verbose=True
             )
         ],
         validation_data=validation_generator,
-        validation_steps=20,
+        validation_steps=25,
     )
 
     return model, X_mean_train, X_std_train

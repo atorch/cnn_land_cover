@@ -27,6 +27,12 @@ python src/annotate_naip_scenes.py
 python src/fit_model.py
 ```
 
+```bash
+sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
+cd /home/cnn_land_cover
+python src/prediction.py
+```
+
 # TODO
 
 * [ ] Download script for the NAIP scenes in [model_config.yml](config/model_config.yml)
