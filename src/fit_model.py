@@ -195,7 +195,9 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     # plot_model(model, to_file='model.png')
 
-    training_generator = get_generator(training_scenes, label_encoder, IMAGE_SHAPE)
+    training_generator = get_generator(
+        training_scenes, label_encoder, IMAGE_SHAPE, batch_size=10
+    )
 
     sample_batch = next(training_generator)
 
@@ -206,22 +208,23 @@ def fit_model(config, label_encoder, cdl_mapping):
 
     save_sample_images(sample_batch, X_mean_train, X_std_train, label_encoder)
 
-    validation_generator = get_generator(validation_scenes, label_encoder, IMAGE_SHAPE)
+    validation_generator = get_generator(
+        validation_scenes, label_encoder, IMAGE_SHAPE, batch_size=10
+    )
 
     # TODO Tensorboard
     history = model.fit(
         x=training_generator,
-        steps_per_epoch=50,
-        epochs=100,
+        steps_per_epoch=100,
+        epochs=200,
         verbose=True,
-        # TODO EarlyStopping val_loss is not available warning
         callbacks=[
             callbacks.EarlyStopping(
                 patience=20, monitor="val_loss", restore_best_weights=True, verbose=True
             )
         ],
         validation_data=validation_generator,
-        validation_steps=10,
+        validation_steps=25,
     )
 
     return model, X_mean_train, X_std_train
