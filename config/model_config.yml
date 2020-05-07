@@ -22,6 +22,7 @@ training_scenes:
   - ./naip/m_4109221_nw_15_1_20170914.tif
   - ./naip/m_4209341_nw_15_1_20170701.tif
   - ./naip/m_4108802_ne_16_1_20170702.tif
+  - ./naip/m_4109057_nw_15_1_20170810.tif
 validation_scenes:
   - ./naip/m_4609334_se_15_1_20170715.tif
   - ./naip/m_4009122_sw_15_1_20170809.tif
@@ -35,6 +36,7 @@ validation_scenes:
   - ./naip/m_4208941_se_16_1_20170823.tif
   - ./naip/m_4208856_sw_16_1_20170903.tif
   - ./naip/m_4108828_ne_16_1_20170702.tif
+  - ./naip/m_4009129_se_15_1_20170725.tif
 test_scenes:
   - ./naip/m_4109232_sw_15_1_20170908.tif
   - ./naip/m_4109137_ne_15_1_20170823.tif
@@ -53,5 +55,9 @@ test_scenes:
   - ./naip/m_4208855_sw_16_1_20170901.tif
   - ./naip/m_4109030_nw_15_1_20170627.tif
   - ./naip/m_4108820_ne_16_1_20170702.tif
+  - ./naip/m_4209055_sw_15_1_20170819.tif
 
-# TODO Put model hyperparams here
+n_blocks: 6
+base_n_filters: 32
+additional_filters_per_block: 16
+dropout_rate: 0.15

@@ -2,6 +2,7 @@ from collections import Counter
 import datetime as dt
 import json
 import os
+import pickle
 
 from tensorflow.keras import callbacks
 from tensorflow.keras.utils import plot_model
@@ -191,7 +192,7 @@ def fit_model(config, label_encoder, cdl_mapping):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(IMAGE_SHAPE, label_encoder)
+    model = get_keras_model(IMAGE_SHAPE, label_encoder, config)
 
     # plot_model(model, to_file='model.png')
 
@@ -227,7 +228,7 @@ def fit_model(config, label_encoder, cdl_mapping):
         validation_steps=25,
     )
 
-    return model, X_mean_train, X_std_train
+    return model, X_mean_train, X_std_train, history
 
 
 def print_masked_classification_report(
@@ -339,19 +340,36 @@ def save_X_mean_and_std_train(X_mean_train, X_std_train, model_name):
     np.save(outfile_std, X_std_train, allow_pickle=False)
 
 
+def save_history(history, model_name):
+
+    outfile_history = model_name.replace(".h5", "_history.pickle")
+    print(f"Saving model training history to {outfile_history}")
+    with open(outfile_history, "wb") as f:
+        pickle.dump(history.history, f)
+
+
+def save_model_config(model_config, model_name):
+
+    outfile_model_config = model_name.replace(".h5", "_model_config.pickle")
+    print(f"Saving model config to {outfile_model_config}")
+    with open(outfile_model_config, "wb") as f:
+        pickle.dump(model_config, f)
+
+
 def main():
 
     config = get_config(MODEL_CONFIG)
     label_encoder, cdl_mapping = get_label_encoder_and_mapping()
 
     model_name = get_model_name()
-    model, X_mean_train, X_std_train = fit_model(config, label_encoder, cdl_mapping)
+    model, X_mean_train, X_std_train, history = fit_model(config, label_encoder, cdl_mapping)
 
     print(f"Saving model to {model_name}")
     model.save(model_name)
 
-    # TODO Also save label encoder?
     save_X_mean_and_std_train(X_mean_train, X_std_train, model_name)
+    save_history(history, model_name)
+    save_model_config(config, model_name)
 
     test_scenes = get_annotated_scenes(
         config["test_scenes"], label_encoder, cdl_mapping
@@ -362,7 +380,7 @@ def main():
     test_generator = get_generator(
         test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
     )
-    test_X, test_y, test_weights = next(test_generator)
+    test_X, test_y, test_weights = next(test_generator)  # TODO Test set loss grouped by naip scene name
 
     # TODO Show test set loss for each objective
     # Also fit some simple baseline models (null model, regression

@@ -104,7 +104,7 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
 
 
 def predict_pixels_entire_scene(
-    model, naip_path, X_mean_train, X_std_train, image_shape, label_encoder, colormap
+    model, naip_path, X_mean_train, X_std_train, image_shape, label_encoder, colormap, save_probabilities=False
 ):
 
     print(f"Predicting on {naip_path}")
@@ -130,16 +130,22 @@ def predict_pixels_entire_scene(
     naip_file = os.path.split(naip_path)[1]
     outpath = os.path.join("predictions", naip_file.replace(".tif", "_predictions.tif"))
 
-    print(f"Saving {outpath}")
+    if save_probabilities:
 
-    with rasterio.open(outpath, "w", **profile) as outfile:
+        print(f"Saving predicted probabilities to {outpath}")
 
-        for index in range(n_pixel_classes):
+        with rasterio.open(outpath, "w", **profile) as outfile:
 
-            # Note: rasterio band indices start with 1, not 0
-            outfile.write(pixel_predictions[:, :, index].transpose(), index + 1)
+            for index in range(n_pixel_classes):
 
-    # TODO Put this in a separate function
+                # Note: rasterio band indices start with 1, not 0
+                outfile.write(pixel_predictions[:, :, index].transpose(), index + 1)
+
+    save_predicted_classes(pixel_predictions, profile, colormap, naip_file)
+
+
+def save_predicted_classes(pixel_predictions, profile, colormap, naip_file):
+
     pixel_predictions_argmax = np.argmax(pixel_predictions, axis=-1).astype("uint8")
 
     profile["dtype"] = pixel_predictions_argmax.dtype
@@ -149,13 +155,13 @@ def predict_pixels_entire_scene(
         "predictions", naip_file.replace(".tif", "_predictions_argmax.tif")
     )
 
-    print(f"Saving {outpath}")
+    print(f"Saving predicted classes to {outpath}")
 
     with rasterio.open(outpath, "w", **profile) as outfile:
 
         outfile.write(pixel_predictions_argmax.transpose(), 1)
-
         outfile.write_colormap(1, {k: v["rgb"] for k, v in colormap.items()})
+
 
 
 def load_X_mean_and_std_train(model_name):
@@ -166,12 +172,12 @@ def load_X_mean_and_std_train(model_name):
     return np.load(infile_mean), np.load(infile_std)
 
 
-def main(model_name="./saved_models/cnn_land_cover_2020_04_29_22.h5"):
+def main(model_name="./saved_models/cnn_land_cover_2020_05_04_04.h5"):
 
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()
 
-    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
+    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, config, include_reshape=False)
 
     # Note: we load weights by name because the two models have slightly different architectures
     #  (this model doesn't include the final reshape which was needed only for temporal sample weights when training)

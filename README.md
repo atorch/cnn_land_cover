@@ -6,7 +6,7 @@ the inputs to the model look like [this](screenshots/test_set_prediction_screens
 and the predictions look like [this](screenshots/test_set_prediction_screenshot_opaque.png).
 See [here](screenshots/test_set_prediction_screenshot_partially_transparent.png)
 for an image showing both the input and the predictions.
-These screenshots were taken from a scene in the model's [test set](config/model_config.yml#L39).
+These screenshots were taken from a scene in the model's [test set](config/model_config.yml#L41).
 Each color in the predictions corresponds to a land cover class:
 forests are green, roads are dark grey, and water is blue.
 
@@ -21,7 +21,6 @@ forests are green, roads are dark grey, and water is blue.
 ```bash
 sudo docker build ~/cnn_land_cover --tag=cnn_land_cover_docker
 sudo docker run --gpus all -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
-cd /home/cnn_land_cover
 python src/save_building_shapefiles.py
 python src/annotate_naip_scenes.py
 python src/fit_model.py
@@ -29,7 +28,6 @@ python src/fit_model.py
 
 ```bash
 sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_docker bash
-cd /home/cnn_land_cover
 python src/prediction.py
 ```
 
@@ -39,7 +37,6 @@ python src/prediction.py
 * [ ] Env var for year, use it in all download scripts
 * [ ] Qix spatial index files for shapefiles
 * [ ] Tensorboard
-* [ ] Tune dropout probability, number of filters, number of blocks
 * [ ] Visualizations, including gradients
 
 # Datasets
