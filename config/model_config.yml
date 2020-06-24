@@ -60,4 +60,5 @@ test_scenes:
 n_blocks: 6
 base_n_filters: 32
 additional_filters_per_block: 16
-dropout_rate: 0.15
+dropout_rate: 0.05
+validation_steps: 30

@@ -225,7 +225,7 @@ def fit_model(config, label_encoder, cdl_mapping):
             )
         ],
         validation_data=validation_generator,
-        validation_steps=25,
+        validation_steps=config["validation_steps"],
     )
 
     return model, X_mean_train, X_std_train, history
@@ -359,6 +359,7 @@ def save_model_config(model_config, model_name):
 def main():
 
     config = get_config(MODEL_CONFIG)
+    print(f"Model config: {config}")
     label_encoder, cdl_mapping = get_label_encoder_and_mapping()
 
     model_name = get_model_name()
