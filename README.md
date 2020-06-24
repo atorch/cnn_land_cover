@@ -31,6 +31,11 @@ sudo docker run -it -v ~/cnn_land_cover:/home/cnn_land_cover cnn_land_cover_dock
 python src/prediction.py
 ```
 
+Note that prediction does _not_ use `--gpus`.
+This is deliberate: the NAIP scenes on which we are predicting are too large to
+fit in GPU memory. Since the model is fully convolutional, it can be trained
+on small image patches (on a GPU) and then used to predict on a larger image (on CPUs).
+
 # TODO
 
 * [ ] Download script for the NAIP scenes in [model_config.yml](config/model_config.yml)
