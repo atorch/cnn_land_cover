@@ -356,11 +356,7 @@ def save_model_config(model_config, model_name):
         pickle.dump(model_config, f)
 
 
-def main():
-
-    config = get_config(MODEL_CONFIG)
-    print(f"Model config: {config}")
-    label_encoder, cdl_mapping = get_label_encoder_and_mapping()
+def run_training(config, label_encoder, cdl_mapping):
 
     model_name = get_model_name()
     model, X_mean_train, X_std_train, history = fit_model(config, label_encoder, cdl_mapping)
@@ -371,6 +367,18 @@ def main():
     save_X_mean_and_std_train(X_mean_train, X_std_train, model_name)
     save_history(history, model_name)
     save_model_config(config, model_name)
+
+    return model, X_mean_train, X_std_train
+
+
+def main():
+
+    config = get_config(MODEL_CONFIG)
+    print(f"Model config: {config}")
+
+    label_encoder, cdl_mapping = get_label_encoder_and_mapping()
+
+    model, X_mean_train, X_std_train = run_training(config, label_encoder, cdl_mapping)
 
     test_scenes = get_annotated_scenes(
         config["test_scenes"], label_encoder, cdl_mapping
@@ -387,6 +395,7 @@ def main():
     # Also fit some simple baseline models (null model, regression
     #  tree that only sees average for each band in the image, nearest neighbors...),
     #  compute their test set loss and show on a plot with CNN test loss
+    # TODO Also, include test set metrics in the history object (compare to min val loss)
     print_classification_reports(test_X, test_y, model, label_encoder)
 
 

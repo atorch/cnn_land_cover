@@ -32,11 +32,11 @@ def add_downsampling_block(input_layer, block_index, config):
 
     n_filters = config["base_n_filters"] + config["additional_filters_per_block"] * block_index
 
-    conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(
+    conv1 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(
         input_layer
     )
     dropout = Dropout(rate=config["dropout_rate"])(conv1)
-    conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(dropout)
+    conv2 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(dropout)
 
     batchnorm = BatchNormalization()(conv2)
 
@@ -56,9 +56,9 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers, co
 
     concat = concatenate([upsample, downsampling_conv2_layers[block_index - 1]])
 
-    conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(concat)
+    conv1 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(concat)
     dropout = Dropout(rate=config["dropout_rate"])(conv1)
-    conv2 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(dropout)
+    conv2 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(dropout)
 
     return BatchNormalization()(conv2)
 
