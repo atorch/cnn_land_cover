@@ -62,7 +62,8 @@ with their labels (one label per objective).
 
 # Models
 
-[Fully convolutional neural network](src/cnn.py) with four objectives:
+[Fully convolutional neural network](src/cnn.py) with four objectives
+([multi-task](https://youtu.be/0VH1Lim8gL8?t=3290)):
 
 ```
 Classification report for has_buildings:
