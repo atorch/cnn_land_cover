@@ -30,13 +30,21 @@ from constants import (
 
 def add_downsampling_block(input_layer, block_index, config):
 
-    n_filters = config["base_n_filters"] + config["additional_filters_per_block"] * block_index
-
-    conv1 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(
-        input_layer
+    n_filters = (
+        config["base_n_filters"] + config["additional_filters_per_block"] * block_index
     )
+
+    conv1 = Conv2D(
+        n_filters,
+        kernel_size=config["kernel_size"],
+        dilation_rate=config["dilation_rate"],
+        padding="same",
+        activation="relu",
+    )(input_layer)
     dropout = Dropout(rate=config["dropout_rate"])(conv1)
-    conv2 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(dropout)
+    conv2 = Conv2D(
+        n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu"
+    )(dropout)
 
     batchnorm = BatchNormalization()(conv2)
 
@@ -50,15 +58,21 @@ def add_downsampling_block(input_layer, block_index, config):
 
 def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers, config):
 
-    n_filters = config["base_n_filters"] + config["additional_filters_per_block"] * block_index
+    n_filters = (
+        config["base_n_filters"] + config["additional_filters_per_block"] * block_index
+    )
 
     upsample = UpSampling2D()(input_layer)
 
     concat = concatenate([upsample, downsampling_conv2_layers[block_index - 1]])
 
-    conv1 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(concat)
+    conv1 = Conv2D(
+        n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu"
+    )(concat)
     dropout = Dropout(rate=config["dropout_rate"])(conv1)
-    conv2 = Conv2D(n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu")(dropout)
+    conv2 = Conv2D(
+        n_filters, kernel_size=config["kernel_size"], padding="same", activation="relu"
+    )(dropout)
 
     return BatchNormalization()(conv2)
 
@@ -68,10 +82,13 @@ def get_keras_model(image_shape, label_encoder, config, include_reshape=True):
     # Note: the model is fully convolutional: the input image width and height can be arbitrary
     input_layer = Input(shape=(None, None, image_shape[2]))
 
+    # TODO Config
+    initial_layer = Conv2D(16, kernel_size=1, activation="relu")(input_layer)
+
     # Note: Keep track of conv2 layers so that they can be connected to the upsampling blocks
     downsampling_conv2_layers = []
 
-    current_last_layer = input_layer
+    current_last_layer = initial_layer
     for index in range(config["n_blocks"]):
 
         current_last_layer, conv2_layer = add_downsampling_block(
@@ -106,7 +123,9 @@ def get_keras_model(image_shape, label_encoder, config, include_reshape=True):
         # Note: we are reshaping so that we can use weights with sample_weight_mode temporal when training
         #  See https://github.com/keras-team/keras/issues/3653#issuecomment-557844450
         #  The model is **not** fully convolutional when include_reshape is True
-        output_pixels = Reshape((image_shape[0] * image_shape[1], n_classes), name=PIXELS_RESHAPED)(pixels_final_conv)
+        output_pixels = Reshape(
+            (image_shape[0] * image_shape[1], n_classes), name=PIXELS_RESHAPED
+        )(pixels_final_conv)
         output_pixels_name = PIXELS_RESHAPED
 
     else:

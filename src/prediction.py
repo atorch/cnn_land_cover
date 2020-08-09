@@ -41,11 +41,6 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
 
     pixel_predictions = np.zeros(X_normalized.shape[:2] + (n_pixel_classes,))
 
-    output_names = get_output_names(model)
-
-    # Note: the output names have suffixes because of multiple calls to get_keras_model
-    pixels_output_index = np.where([o.startswith(PIXELS) for o in output_names])[0][0]
-
     n_predictions = np.zeros_like(pixel_predictions, dtype="uint8")
 
     # Note: The model is fully convolutional, so we could in theory predict on images of any size,
@@ -76,6 +71,10 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
     model_predictions_top_right = model.predict(X_normalized_top_right)
     model_predictions_bottom_left = model.predict(X_normalized_bottom_left)
     model_predictions_bottom_right = model.predict(X_normalized_bottom_right)
+
+    # Note: the output names have suffixes because of multiple calls to get_keras_model
+    output_names = get_output_names(model)
+    pixels_output_index = np.where([o.startswith(PIXELS) for o in output_names])[0][0]
 
     pixel_predictions[
         :prediction_width, :prediction_height, :

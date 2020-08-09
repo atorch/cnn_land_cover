@@ -39,12 +39,25 @@ def main():
     df["min_val_loss"] = val_losses
     df["config_path"] = config_paths
 
-    cols = ["base_n_filters", "dropout_rate", "min_val_loss", "config_path", "additional_filters_per_block"]
+    df["n_test_scenes"] = df["test_scenes"].apply(len)
+
+    cols = [
+        "base_n_filters",
+        "dropout_rate",
+        "min_val_loss",
+        "config_path",
+        "additional_filters_per_block",
+        "dilation_rate",
+        "kernel_size",
+        "test_scenes",
+        "n_test_scenes",
+    ]
     print(df[cols])
 
     best_index = np.argmin(val_losses)
     best_config_path = config_paths[best_index]
-    print(f"model config with lowest val_loss: {best_config_path}")
+    print(f"model config with min val_loss: {best_config_path}")
+    print(f"min val_loss: {np.min(val_losses)}")
 
     df[cols].to_csv("tuning_results.csv", index=False)
 

@@ -252,9 +252,7 @@ def print_masked_classification_report(
     )
 
 
-def print_classification_reports(test_X, test_y, model, label_encoder):
-
-    test_predictions = model.predict(test_X)
+def print_classification_reports(test_X, test_y, test_predictions, model, label_encoder):
 
     output_names = get_output_names(model)
 
@@ -371,6 +369,39 @@ def run_training(config, label_encoder, cdl_mapping):
     return model, X_mean_train, X_std_train
 
 
+def print_test_set_stats(model, label_encoder, test_generator, n_test_batches):
+
+    test_X_batches, test_y_batches, test_prediction_batches = ([], [], [])
+
+    for _ in range(n_test_batches):
+
+        test_X, test_y, test_weights = next(test_generator)
+        test_predictions = model.predict(test_X)
+
+        test_X_batches.append(test_X)
+        test_y_batches.append(test_y)
+        test_prediction_batches.append(test_predictions)
+
+    # Note: We predicted on several small batches (so that prediction could run on GPUs),
+    #  and now we stitch the batches together into
+    #  single large arrays (for X), dictionaries (for y), and lists (for the predictions)
+    test_X = np.concatenate(test_X_batches, axis=0)
+    test_y, test_predictions = ({}, [])
+
+    for index, objective_name in enumerate(test_y_batches[0].keys()):
+        test_y[objective_name] = np.concatenate([test_y_batch[objective_name] for test_y_batch in test_y_batches], axis=0)
+        test_predictions.append(np.concatenate([test_prediction_batch[index] for test_prediction_batch in test_prediction_batches], axis=0))
+
+    # TODO Show test set loss for each objective
+    # Also fit some simple baseline models (null model, regression
+    #  tree that only sees average for each band in the image, nearest neighbors...),
+    #  compute their test set loss and show on a plot with CNN test loss
+    # TODO Also, include test set metrics in the history object (compare to min val loss)
+    # TODO Test set loss grouped by naip scene name
+    # TODO Save these classification reports to text/json files?
+    print_classification_reports(test_X, test_y, test_predictions, model, label_encoder)
+
+
 def main():
 
     config = get_config(MODEL_CONFIG)
@@ -385,18 +416,13 @@ def main():
     )
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
-    # Note: use a large batch size so that test set stats have a small standard error
+    # Note: use a large number of test batches so that test set stats have a small standard error,
+    #  but predict on only 10 patches/images at a time so that this can run on GPU without a memory error
     test_generator = get_generator(
-        test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
+        test_scenes, label_encoder, IMAGE_SHAPE, batch_size=10
     )
-    test_X, test_y, test_weights = next(test_generator)  # TODO Test set loss grouped by naip scene name
 
-    # TODO Show test set loss for each objective
-    # Also fit some simple baseline models (null model, regression
-    #  tree that only sees average for each band in the image, nearest neighbors...),
-    #  compute their test set loss and show on a plot with CNN test loss
-    # TODO Also, include test set metrics in the history object (compare to min val loss)
-    print_classification_reports(test_X, test_y, model, label_encoder)
+    print_test_set_stats(model, label_encoder, test_generator, n_test_batches=80)
 
 
 if __name__ == "__main__":
