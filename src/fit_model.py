@@ -2,6 +2,7 @@ from collections import Counter
 import datetime as dt
 import json
 import os
+import pickle
 
 from tensorflow.keras import callbacks
 from tensorflow.keras.utils import plot_model
@@ -191,7 +192,7 @@ def fit_model(config, label_encoder, cdl_mapping):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(IMAGE_SHAPE, label_encoder)
+    model = get_keras_model(IMAGE_SHAPE, label_encoder, config)
 
     # plot_model(model, to_file='model.png')
 
@@ -224,10 +225,10 @@ def fit_model(config, label_encoder, cdl_mapping):
             )
         ],
         validation_data=validation_generator,
-        validation_steps=25,
+        validation_steps=config["validation_steps"],
     )
 
-    return model, X_mean_train, X_std_train
+    return model, X_mean_train, X_std_train, history
 
 
 def print_masked_classification_report(
@@ -251,9 +252,7 @@ def print_masked_classification_report(
     )
 
 
-def print_classification_reports(test_X, test_y, model, label_encoder):
-
-    test_predictions = model.predict(test_X)
+def print_classification_reports(test_X, test_y, test_predictions, model, label_encoder):
 
     output_names = get_output_names(model)
 
@@ -339,36 +338,91 @@ def save_X_mean_and_std_train(X_mean_train, X_std_train, model_name):
     np.save(outfile_std, X_std_train, allow_pickle=False)
 
 
-def main():
+def save_history(history, model_name):
 
-    config = get_config(MODEL_CONFIG)
-    label_encoder, cdl_mapping = get_label_encoder_and_mapping()
+    outfile_history = model_name.replace(".h5", "_history.pickle")
+    print(f"Saving model training history to {outfile_history}")
+    with open(outfile_history, "wb") as f:
+        pickle.dump(history.history, f)
+
+
+def save_model_config(model_config, model_name):
+
+    outfile_model_config = model_name.replace(".h5", "_model_config.pickle")
+    print(f"Saving model config to {outfile_model_config}")
+    with open(outfile_model_config, "wb") as f:
+        pickle.dump(model_config, f)
+
+
+def run_training(config, label_encoder, cdl_mapping):
 
     model_name = get_model_name()
-    model, X_mean_train, X_std_train = fit_model(config, label_encoder, cdl_mapping)
+    model, X_mean_train, X_std_train, history = fit_model(config, label_encoder, cdl_mapping)
 
     print(f"Saving model to {model_name}")
     model.save(model_name)
 
-    # TODO Also save label encoder?
     save_X_mean_and_std_train(X_mean_train, X_std_train, model_name)
+    save_history(history, model_name)
+    save_model_config(config, model_name)
+
+    return model, X_mean_train, X_std_train
+
+
+def print_test_set_stats(model, label_encoder, test_generator, n_test_batches):
+
+    test_X_batches, test_y_batches, test_prediction_batches = ([], [], [])
+
+    for _ in range(n_test_batches):
+
+        test_X, test_y, test_weights = next(test_generator)
+        test_predictions = model.predict(test_X)
+
+        test_X_batches.append(test_X)
+        test_y_batches.append(test_y)
+        test_prediction_batches.append(test_predictions)
+
+    # Note: We predicted on several small batches (so that prediction could run on GPUs),
+    #  and now we stitch the batches together into
+    #  single large arrays (for X), dictionaries (for y), and lists (for the predictions)
+    test_X = np.concatenate(test_X_batches, axis=0)
+    test_y, test_predictions = ({}, [])
+
+    for index, objective_name in enumerate(test_y_batches[0].keys()):
+        test_y[objective_name] = np.concatenate([test_y_batch[objective_name] for test_y_batch in test_y_batches], axis=0)
+        test_predictions.append(np.concatenate([test_prediction_batch[index] for test_prediction_batch in test_prediction_batches], axis=0))
+
+    # TODO Show test set loss for each objective
+    # Also fit some simple baseline models (null model, regression
+    #  tree that only sees average for each band in the image, nearest neighbors...),
+    #  compute their test set loss and show on a plot with CNN test loss
+    # TODO Also, include test set metrics in the history object (compare to min val loss)
+    # TODO Test set loss grouped by naip scene name
+    # TODO Save these classification reports to text/json files?
+    print_classification_reports(test_X, test_y, test_predictions, model, label_encoder)
+
+
+def main():
+
+    config = get_config(MODEL_CONFIG)
+    print(f"Model config: {config}")
+
+    label_encoder, cdl_mapping = get_label_encoder_and_mapping()
+
+    model, X_mean_train, X_std_train = run_training(config, label_encoder, cdl_mapping)
 
     test_scenes = get_annotated_scenes(
         config["test_scenes"], label_encoder, cdl_mapping
     )
     normalize_scenes(test_scenes, X_mean_train, X_std_train)
 
-    # Note: use a large batch size so that test set stats have a small standard error
+    # Note: use a large number of test batches so that test set stats have a small standard error,
+    #  but predict on only 10 patches/images at a time so that this can run on GPU without a memory error
     test_generator = get_generator(
-        test_scenes, label_encoder, IMAGE_SHAPE, batch_size=600
+        test_scenes, label_encoder, IMAGE_SHAPE, batch_size=10
     )
-    test_X, test_y, test_weights = next(test_generator)
 
-    # TODO Show test set loss for each objective
-    # Also fit some simple baseline models (null model, regression
-    #  tree that only sees average for each band in the image, nearest neighbors...),
-    #  compute their test set loss and show on a plot with CNN test loss
-    print_classification_reports(test_X, test_y, model, label_encoder)
+    print_test_set_stats(model, label_encoder, test_generator, n_test_batches=80)
 
 
 if __name__ == "__main__":
