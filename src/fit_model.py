@@ -11,8 +11,8 @@ import rasterio
 from shapely.geometry import Polygon
 from sklearn.metrics import classification_report, confusion_matrix
 
-from cnn import (
-    get_keras_model,
+from models import (
+    get_multi_output_model,
     get_output_names,
     HAS_BUILDINGS,
     HAS_ROADS,
@@ -191,7 +191,7 @@ def fit_model(config, label_encoder, cdl_mapping):
     normalize_scenes(training_scenes, X_mean_train, X_std_train)
     normalize_scenes(validation_scenes, X_mean_train, X_std_train)
 
-    model = get_keras_model(IMAGE_SHAPE, label_encoder)
+    model = get_multi_output_model(IMAGE_SHAPE, label_encoder)
 
     # plot_model(model, to_file='model.png')
 

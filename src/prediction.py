@@ -5,7 +5,7 @@ from tensorflow.keras.utils import get_custom_objects
 import numpy as np
 import rasterio
 
-from cnn import get_output_names, get_keras_model
+from models import get_output_names, get_multi_output_model
 from constants import CDL_CLASSES_TO_MASK, IMAGE_SHAPE, MODEL_CONFIG, PIXELS
 from normalization import get_X_normalized
 from utils import get_config, get_label_encoder_and_mapping
@@ -43,7 +43,7 @@ def get_pixel_predictions(model, n_pixel_classes, X_normalized, image_shape):
 
     output_names = get_output_names(model)
 
-    # Note: the output names have suffixes because of multiple calls to get_keras_model
+    # Note: the output names have suffixes because of multiple calls to get_multi_output_model
     pixels_output_index = np.where([o.startswith(PIXELS) for o in output_names])[0][0]
 
     n_predictions = np.zeros_like(pixel_predictions, dtype="uint8")
@@ -171,7 +171,7 @@ def main(model_name="./saved_models/cnn_land_cover_2020_04_29_22.h5"):
     config = get_config(MODEL_CONFIG)
     label_encoder, _ = get_label_encoder_and_mapping()
 
-    model_without_reshape = get_keras_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
+    model_without_reshape = get_multi_output_model(IMAGE_SHAPE, label_encoder, include_reshape=False)
 
     # Note: we load weights by name because the two models have slightly different architectures
     #  (this model doesn't include the final reshape which was needed only for temporal sample weights when training)

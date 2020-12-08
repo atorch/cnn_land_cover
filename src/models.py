@@ -39,6 +39,7 @@ def add_downsampling_block(input_layer, block_index):
 
     n_filters = BASE_N_FILTERS + ADDITIONAL_FILTERS_PER_BLOCK * block_index
 
+    # TODO Try leaky relu?
     conv1 = Conv2D(n_filters, kernel_size=3, padding="same", activation="relu")(
         input_layer
     )
@@ -70,7 +71,7 @@ def add_upsampling_block(input_layer, block_index, downsampling_conv2_layers):
     return BatchNormalization()(conv2)
 
 
-def get_keras_model(image_shape, label_encoder, include_reshape=True):
+def get_multi_output_model(image_shape, label_encoder, include_reshape=True):
 
     # Note: the model is fully convolutional: the input image width and height can be arbitrary
     input_layer = Input(shape=(None, None, image_shape[2]))
@@ -165,3 +166,78 @@ def get_output_names(model):
     # Note: example name is "is_majority_forest/Sigmoid" -- get the part before the "/"
     # TODO Why do names have an extra "_1" suffix after model is saved (but not before?)
     return [x.op.name.split("/")[0].replace("_1", "") for x in model.outputs]
+
+
+def get_discriminator_model(image_shape):
+
+    # Note: the discriminator is not fully conv (needs a specific input shape)
+    input_layer = Input(shape=(image_shape))
+
+    current_last_layer = input_layer
+
+    # TODO Could have its own N_BLOCKS tuning parameter instead of sharing with multi-output model
+    for index in range(N_BLOCKS):
+
+        current_last_layer, _ = add_downsampling_block(
+            current_last_layer, index
+        )
+
+    # TODO Try leaky relu for discriminator
+    flat = Flatten()(current_last_layer)
+    fc = Dense(16, activation="relu")(flat)
+
+    probabilities = Dense(1, activation="sigmoid")(fc)
+
+    model = Model(
+        inputs=input_layer,
+        outputs=[probabilities],
+    )
+
+    print(model.summary())
+
+    return model
+
+
+def get_generator_model(image_shape):
+
+    # TODO Make input None, None, 1?  Single band of noise instead of 4?
+    input_layer = Input(shape=(None, None, image_shape[2]))
+
+    current_last_layer = input_layer
+
+    # Note: Keep track of conv2 layers so that they can be connected to the upsampling blocks
+    downsampling_conv2_layers = []
+
+    # TODO Could have its own N_BLOCKS tuning parameter instead of sharing with multi-output model
+    for index in range(N_BLOCKS):
+
+        # TODO Strided conv instead of maxpool?
+        current_last_layer, conv2_layer = add_downsampling_block(
+            current_last_layer, index
+        )
+
+        downsampling_conv2_layers.append(conv2_layer)
+
+    for index in range(N_BLOCKS - 1, 0, -1):
+
+        current_last_layer = add_upsampling_block(
+            current_last_layer, index, downsampling_conv2_layers
+        )
+
+    n_bands = image_shape[2]
+
+    # Note: NAIP pixel values are in [0, 255],
+    # so we force the generator to output values in the same range
+    pixel_values = 255 * Conv2D(n_bands, 1, activation="sigmoid")(
+        current_last_layer
+    )
+
+    model = Model(
+        inputs=input_layer,
+        outputs=[pixel_values],
+    )
+
+    print(model.summary())
+
+    return model
+

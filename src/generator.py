@@ -12,6 +12,32 @@ from constants import (
 )
 
 
+def get_naip_patch_generator(naip_scenes, image_shape, batch_size):
+
+    while True:
+
+        batch_X = np.empty((batch_size,) + image_shape)
+
+        scene_indices = np.random.choice(range(len(naip_scenes)), size=batch_size)
+
+        for batch_index, scene_index in enumerate(scene_indices):
+
+            naip_X = naip_scenes[scene_index]
+
+            # Note: both values and image_shape are (x, y, band) after call to np.swapaxes
+            x_start = np.random.choice(range(naip_X.shape[0] - image_shape[0]))
+            y_start = np.random.choice(range(naip_X.shape[1] - image_shape[1]))
+
+            x_end = x_start + image_shape[0]
+            y_end = y_start + image_shape[1]
+
+            naip_patch = naip_X[x_start:x_end, y_start:y_end, 0 : image_shape[2]]
+
+            batch_X[batch_index] = naip_patch
+
+        yield batch_X
+
+
 def get_generator(annotated_scenes, label_encoder, image_shape, batch_size=20):
 
     # TODO Better sampling scheme than uniform, compare accuracy
